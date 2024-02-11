@@ -20,24 +20,102 @@ _supported_intrinsic_types = {torch.ao.nn.intrinsic.ConvReLU2d, torch.ao.nn.intr
 _all_supported_types = _supported_types.union(_supported_intrinsic_types)
 
 def set_module_weight(module, weight) -> None:
+    """
+    This function sets the weight parameter of a given module to a specified value
+    using Torch's ` Parameter` class. It supports a variety of module types and
+    assigns the weight to either the module or one of its elements depending on
+    the type of module.
+
+    Args:
+        module (list): The `module` input parameter is an object that should be a
+            nnn module of one of the supported types and the weight to be set to
+            it is the second parameter.
+        weight (): The weight parameter modifies the module's parameters so that
+            it scales the outputs when multiplied by the weights.
+
+    """
     if type(module) in _supported_types:
         module.weight = torch.nn.Parameter(weight)
     else:
         module[0].weight = torch.nn.Parameter(weight)
 
 def set_module_bias(module, bias) -> None:
+    """
+    The provided code defines a Python function named `set_module_bias`. It takes
+    two arguments: `module`, and `bias`. What the function does is that it sets
+    the bias for a PyTorch module to a new value passed as argument if type(module)
+    exists among the listed supported types or module[0].bias (this will only set
+    the bias if it exists).
+
+    Args:
+        module (None): Here's a concise answer to your question:
+            
+            `module` is a Python object that serves as an argument to this function
+            set_module_bias(), which may or may not have properties like 'bias',
+            given by the `type(module)` test _supported_types.
+        bias (float): The input `bias` is being set as a parameter of whatever
+            instance of the supported classes has been passed into the `set_module_bias`
+            function. The precise purpose is hard to determine with so little
+            context (I only have the input function to review), and the types being
+            passed cannot be reliably determined either given that we've stripped
+            all relevant context; nonetheless I can safely say that `bias` should
+            refer to a valid PyTorch Parameter if the module and classes supported
+            by this are properly implemented and will become one when assigned.
+            Is there anything specific you wish me to address concerning this input
+            parameter?
+
+    """
     if type(module) in _supported_types:
         module.bias = torch.nn.Parameter(bias)
     else:
         module[0].bias = torch.nn.Parameter(bias)
 
 def get_module_weight(module):
+    """
+    This function retrieves the weight of a given PyTorch module. If the module
+    is a supported type (i.e., a module implemented by PyTorch), it returns the
+    module's weight directly. Otherwise (i.e., the module is a list or tensor),
+    it returns the weight of the first element inside the module.
+
+    Args:
+        module (list): The `module` input parameter is any Python object and this
+            function figures out how to extract its weight.
+
+    Returns:
+        float: The function `get_module_weight(module)` returns the weight of the
+        first element inside the given module if the type of the module is not
+        supported or if the module is not iterable (e.g., a list or tuple). It
+        otherwise returns the weight of the module itself.
+        
+        For example;  if `supported_types`= (_supported_types), the function returns
+        either the `weight' of an object belonging to one of those types (`e.g.
+        _,int`,list') or ' None'. If `module is not iterable', it returns `'None'`.
+
+    """
     if type(module) in _supported_types:
         return module.weight
     else:
         return module[0].weight
 
 def get_module_bias(module):
+    """
+    This function returns the bias attribute of a module or its first layer (if
+    it's not a supported type).
+
+    Args:
+        module (list): The `module` parameter is not actually used anywhere within
+            the function.  Instead it takes any valid Python object and defaults
+            to its first (0th) index or attribute to check if it has a bias value;
+            if that's empty string it will raise a AttributeError.  Thus `module`
+            exists only so that this code may support more varieties of input than
+            those which directly have the desired property or attribute of `.bias`,
+            but any such type of object (including nested modules like list items)
+            with some type of '`.bias'` item index qualifies for its return.
+
+    Returns:
+        float: The function `get_module_bias()` returns a single bias value.
+
+    """
     if type(module) in _supported_types:
         return module.bias
     else:
