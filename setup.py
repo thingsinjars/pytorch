@@ -301,11 +301,21 @@ sys.argv = filtered_args
 if VERBOSE_SCRIPT:
 
     def report(*args):
+        """
+        The function takes any number of arguments and prints them all out one by
+        one to the screen.
+
+        """
         print(*args)
 
 else:
 
     def report(*args):
+        """
+        Nothing. The function simply declares a parameter list and immediately
+        discards it by assigning nothing to the function body's "pass" statement.
+
+        """
         pass
 
     # Make distutils respect --quiet too
@@ -346,6 +356,28 @@ cmake = CMake()
 
 
 def get_submodule_folders():
+    """
+    This function returns a list of submodule folders inside the current repository's
+    .gitmodules file or defaults to a predefined list of third-party folders if
+    the file does not exist.
+
+    Returns:
+        list: The output returned by this function is a list of folders that contain
+        submodules of the current Git repository. The folders are specified using
+        their path relative to the root directory of the repository. Specifically;
+        it returns the paths for submodule modules that exist within the third-party
+        directory.
+        The output is listed comprehensively below:
+        1/ /gloo
+        2/ /cpuinfo
+        3/ /tbb
+        4/ /onnx
+        5/ /foxi
+        6/ /QNNPACK
+        7/ /fbgemm
+        8/ /cutlass
+
+    """
     git_modules_path = os.path.join(cwd, ".gitmodules")
     default_modules_path = [
         os.path.join(third_party_path, name)
@@ -371,13 +403,55 @@ def get_submodule_folders():
 
 
 def check_submodules():
+    """
+    This function checks if submodules are initialized and if there files present
+    based on given list of files. If any of the submodule folders not exists or
+    empty it tries to initialize them. After initialization it checks again for
+    presence of files based on the given list.
+
+    """
     def check_for_files(folder, files):
+        """
+        This function checks if the specified folders contains all the files
+        provided as an argument and displays error message and exit the program
+        if not found.
+
+        Args:
+            folder (str): The `folder` input parameter specifies the root directory
+                to check for the presence of files.
+            files (list): The `files` input parameter is a list of file names
+                expected to be located within the specified folder. If no files
+                matching those names are found within that folder then an error
+                message is printed out with information as to where the function
+                has failed  and the process exits with a status of "1" (error)
+                rather than completing without incident.
+
+        """
         if not any(os.path.exists(os.path.join(folder, f)) for f in files):
             report("Could not find any of {} in {}".format(", ".join(files), folder))
             report("Did you run 'git submodule update --init --recursive'?")
             sys.exit(1)
 
     def not_exists_or_empty(folder):
+        """
+        The provided function takes a folder path as an input and checks if the
+        folder exists or not and returns a boolean value based on that check. If
+        the folder exists and it is a directory and it does not contain any files
+        or subdirectories inside it will return True.
+
+        Args:
+            folder (str): The `folder` input parameter is used to determine whether
+                a folder exists and if it's empty. It takes a folder path as an
+                argument and checks if the folder exists and if it has any files
+                or subfolders within it.
+
+        Returns:
+            bool: The function returns True. The condition "os.path.exists(folder)"
+            evaluates to False for non-existent folders. If it exists but is
+            empty("os.listdir(folder) == 0") the directory structure would be
+            reported as an empty list with length 0
+
+        """
         return not os.path.exists(folder) or (
             os.path.isdir(folder) and len(os.listdir(folder)) == 0
         )
@@ -426,6 +500,12 @@ def check_submodules():
 def mirror_files_into_torchgen():
     # (new_path, orig_path)
     # Directories are OK and are recursively mirrored.
+    """
+    This function mirrors files from a set of given original paths to a new location.
+    It creates any parent directories that don't already exist and copies files
+    from the orig location to the new location.
+
+    """
     paths = [
         (
             "torchgen/packaged/ATen/native/native_functions.yaml",
@@ -456,6 +536,34 @@ def mirror_files_into_torchgen():
 
 # all the work we need to do _before_ setup runs
 def build_deps():
+    """
+    This function is build_deps() and its purpose is to ensure correct builds of
+    Caffe2's dependencies on a variety of systems; primarily Unix based. It achieves
+    this through checking for yaml submodules and then setting up pydep installations
+    for required packages found. Next the main package which needs built is called
+    caffe2 where the function utilises variables stored at the beginning of its
+    implementation including:
+    - version which specifies what build is currently happening
+    - check_submoduels to activate those required to work correctly as dependencies
+    themselves
+    - pydep to ensure pyyaml's package manager functions effectively and as needed
+    during construction
+        (a Python package to facilitate loading .so and friends without issue at
+    runtime). The check_pydep variable has already determined if there are specific
+    version dependencies requiring installed via that method or installation)
+    - cmake: CMake to construct project layout including building the requested libraries
+                       from configuration
+    - cmake_python_library; this ensures construction is called to produce these
+    libraries during builds
+    Ultimately reporting back to a prompt if cmake construction has run successfully
+    along with some optional parameters   for other parts of that package
+    build/initialisation including invoking CMake GUI (if supported or not) or 
+    Python Setup tools. This script ensures build quality while giving the operator
+    the correct choices of execution to then correctly complete a Caffe2 compilation
+    suite ready to run and operate further pipelines dependent on this product for
+    compute workload(s).
+
+    """
     report("-- Building version " + version)
 
     check_submodules()
@@ -512,6 +620,22 @@ Please install it via `conda install {module}` or `pip install {module}`
 
 
 def check_pydep(importname, module):
+    """
+    This function checks if a specific Python dependency is present by trying to
+    import it. If the import fails due to a missing dependency , it raises a
+    RuntimeError with the missing dependency and the importing module specified
+    as arguments.
+
+    Args:
+        importname (str): The `importname` parameter is the name of the Python
+            package or module that should be imported if it's not already loaded
+            into memory and made available to the program as part of standard
+            library modules (if that fails an `ImportError` will ensue).
+        module (str): The input parameter `module` passes through any imported
+            exceptions when the imported module raises one; without it exceptions
+            aren't passed through properly.
+
+    """
     try:
         importlib.import_module(importname)
     except ImportError as e:
@@ -523,6 +647,13 @@ def check_pydep(importname, module):
 class build_ext(setuptools.command.build_ext.build_ext):
     def _embed_libomp(self):
         # Copy libiomp5.dylib/libomp.dylib inside the wheel package on MacOS
+        """
+        This Python function is modifying the CMake build script by including
+        libiomp5.dylib/libomp.dylib copied into the wheel package on MacOS at a
+        custom location included to LD_RUN_PATH and also copies the OpenMP header
+        files omp.h included under Torch installation include directory
+
+        """
         lib_dir = os.path.join(self.build_lib, "torch", "lib")
         libtorch_cpu_path = os.path.join(lib_dir, "libtorch_cpu.dylib")
         if not os.path.exists(libtorch_cpu_path):
@@ -575,6 +706,12 @@ class build_ext(setuptools.command.build_ext.build_ext):
     def run(self):
         # Report build options. This is run after the build completes so # `CMakeCache.txt` exists and we can get an
         # accurate report on what is used and what is not.
+        """
+        This function runs a build process for the Torch library. It checks and
+        reports on various build options such as NumPy bindings; CUDA and XPU
+        support; MKLDNN use. Whether to include system provided NCCL library.
+
+        """
         cmake_cache_vars = defaultdict(lambda: False, cmake.get_cmake_cache_variables())
         if cmake_cache_vars["USE_NUMPY"]:
             report("-- Building with NumPy bindings")
@@ -692,6 +829,14 @@ class build_ext(setuptools.command.build_ext.build_ext):
             self.copy_file(export_lib, target_lib)
 
     def build_extensions(self):
+        """
+        This function builds the extensions of a package that have been marked
+        with `setuptools.extension`. Specifically it makes copies of extension
+        modules (caffe2's pybind extensions) to the appropriate directory for
+        building the extension. It also sets the build commands and runs the build
+        commands via `setuptools.command.build_ext.build_ext.build_extensions()`
+
+        """
         self.create_compile_commands()
         # The caffe2 extensions are created in
         # tmp_install/lib/pythonM.m/site-packages/caffe2/python/
@@ -752,13 +897,42 @@ class build_ext(setuptools.command.build_ext.build_ext):
         setuptools.command.build_ext.build_ext.build_extensions(self)
 
     def get_outputs(self):
+        """
+        This function returns a list of files that are generated by the ` setup.py`
+        script during the building process. Specifically , it appends the path to
+        the file `caffe2.so` ( which is presumably the library being built) to a
+        list of outputs and then returns the list.
+
+        Returns:
+            : The output returned by this function is ["caffe2"].
+
+        """
         outputs = setuptools.command.build_ext.build_ext.get_outputs(self)
         outputs.append(os.path.join(self.build_lib, "caffe2"))
         report(f"setup.py::get_outputs returning {outputs}")
         return outputs
 
     def create_compile_commands(self):
+        """
+        This function creates a list of compile commands from Ninja and CMake files
+        and modifies the command to replace gcc with g++ to resolve issues with
+        cquery not including header directories. It then dumps the modified commands
+        to a compile_commands.json file.
+
+        """
         def load(filename):
+            """
+            The `load` function reads the contents of a JSON file specified by the
+            `filename` parameter and returns the contents as a Python dictionary.
+
+            Args:
+                filename (str): The `filename` input parameter specifies the file
+                    to be read and parsed as a JSON object.
+
+            Returns:
+                dict: The output returned by this function is a JSON object or dictionary.
+
+            """
             with open(filename) as f:
                 return json.load(f)
 
@@ -794,6 +968,15 @@ class concat_license_files:
     """
 
     def __init__(self, include_files=False):
+        """
+        This function initiates an object with two file paths and a boolean parameter
+        indicating if included files should be searched.
+
+        Args:
+            include_files (bool): The `include_files` input parameter determines
+                whether to include non-standard Python files.
+
+        """
         self.f1 = "LICENSE"
         self.f2 = "third_party/LICENSES_BUNDLED.txt"
         self.include_files = include_files
@@ -836,12 +1019,25 @@ else:
         """check submodules on sdist to prevent incomplete tarballs"""
 
         def run(self):
+            """
+            This function wraps the `run()` method of a class (which is assumed
+            to be a QWidget subclass) and adds the concatenation of all license
+            files as include_files = True before calling the `super().run()`. In
+            other words，it appends all license files as includes to the class
+            before running its original run() method.
+
+            """
             with concat_license_files(include_files=True):
                 super().run()
 
 
 class install(setuptools.command.install.install):
     def run(self):
+        """
+        The given function `run()` is calling the parent class's `run()` method
+        by invoking `super().run()` within the context of the child class.
+
+        """
         super().run()
 
 
@@ -849,12 +1045,32 @@ class clean(setuptools.Command):
     user_options = []
 
     def initialize_options(self):
+        """
+        The function "initialize_options" initializes (or sets up) the options for
+        the object.
+
+        """
         pass
 
     def finalize_options(self):
+        """
+        The `finalize_options` function does nothing since it is empty. There is
+        no code within the function body. Therefore the function does not perform
+        any action and simply passes through.
+
+        """
         pass
 
     def run(self):
+        """
+        This function scans a '.gitignore' file and uses regular expressions to
+        remove files matching certain patterns from the system. It first looks for
+        a marker at the beginning of each line and if it finds one it breaks out
+        of the loop. Then it looks for lines that begin with a # and ignores them.
+        Finally it looks for wildcards using glob.glob() and removes the matching
+        files or directories using os.remove() and shutil.rmtree().
+
+        """
         import glob
         import re
 
@@ -881,11 +1097,33 @@ class clean(setuptools.Command):
 
 class sdist(setuptools.command.sdist.sdist):
     def run(self):
+        """
+        This function is a subclassed method that runs a certain code using the
+        `super()` method after it has executed some specific blocks of code within
+        a context manager (specifically `concat_license_files`) which ensures
+        licensing files are correctly concatenated and loaded before the main
+        operation commences. In simpler terms run() within this subclass is a
+        wrapper around the base class run() which adds a prefix function call for
+        proper concatenation of license files first before running the base run()
+
+        """
         with concat_license_files():
             super().run()
 
 
 def get_cmake_cache_vars():
+    """
+    This function gets the variables from CMakeCache.txt and returns them as a
+    dictionary of truthy values; if no such file exists it returns an empty dictionary.
+
+    Returns:
+        dict: The output of the get_cmake_cache_vars() function is a default
+        dictionary with keys representing CMake cache variables and values set to
+        'False' for all keys except for those found within CMakeCache.txt file.
+        
+        Please let me know if you need further assistance or explanation.
+
+    """
     try:
         return defaultdict(lambda: False, cmake.get_cmake_cache_variables())
     except FileNotFoundError:
@@ -991,6 +1229,24 @@ def configure_extension_build():
             extra_link_args += ["-arch", macos_target_arch]
 
     def make_relative_rpath_args(path):
+        """
+        This function creates arguments to pass to the linker using the RPATH flag
+        based on the system being run on (Darwin or Windows) to make the executable's
+        dependency path relative to its own directory rather than hardcoded paths.
+
+        Args:
+            path (str): The input parameter `path` to `make_relative_rpath_args()`
+                represents the directory path of an external library that we want
+                to link with the executable.
+
+        Returns:
+            list: The output returned by the `make_relative_rpath_args` function
+            depends on the platform; on Darwin (Mac OS X), the return value is a
+            list of one argument consisting of "-Wl,-rpath @loader_path/", while
+            on Windows the return value is an empty list []. On other platforms
+            (not specified), the return value is a list containing -Wl,-rpath $ORIGIN/
+
+        """
         if IS_DARWIN:
             return ["-Wl,-rpath,@loader_path/" + path]
         elif IS_WINDOWS:
@@ -1075,6 +1331,18 @@ build_update_message = """
 
 
 def print_box(msg):
+    """
+    This function prints a boxed version of a multi-line message. It splits the
+    message into lines and determines the maximum length of each line. Then it
+    prints a dashes-separated border around the lines using the determined size.
+
+    Args:
+        msg (str): The `msg` input parameter takes a message or a string as input
+            which is then splitted by new line character `\n`. The function then
+            uses this splitted list of lines to print a box around the message
+            with pipes and spaces.
+
+    """
     lines = msg.split("\n")
     size = max(len(l) + 1 for l in lines)
     print("-" * (size + 2))
@@ -1085,6 +1353,13 @@ def print_box(msg):
 
 def main():
     # the list of runtime dependencies required by this built package
+    """
+    This function creates a Python package called "torch" from the Git repository
+    at the specified "version" and with certain installed packages as requirements.
+    It also specifies a list of modules and files to include or exclude during the
+    installation process.
+
+    """
     install_requires = [
         "filelock",
         "typing-extensions>=4.8.0",
