@@ -116,28 +116,30 @@ method_list = {
 def check_node(node, modules):
     # TODO: reuse is_fixed_qparam_node after we move this function to _lower_to_native_backend.py
     """
-    determines whether a given Python node can be optimized by calling another
-    module, function, or method. It returns three booleans indicating which type
-    of optimization is possible.
+    determines whether a given Python node represents a call to a function, method,
+    or module, based on its operation and target.
 
     Args:
-        node (Node instance.): Python abstract syntax tree ( AST) node being checked
-            for calls to functions, methods, or modules.
+        node (`ast.Node`.): nodes to be checked for callable functions or methods.
             
-            		- `op`: The operation performed by the node, which is a string
-            representing one of "call_function", "call_method", or "call_module".
+            		- `op`: The operation performed by the node, which is specified in
+            the string `op`.
             		- `target`: The target of the operation, which can be a function
             name, method name, or module name.
-            		- `modules`: A dictionary containing the modules associated with the
-            target, where each key is a string representing a module name, and
-            each value is the type of the module (one of the types in the `module_type_list`).
+            		- `modules`: A list of modules that are being called, accessed using
+            the variable `modules[str(node.target)]`.
             
-        modules (list): list of modules that are relevant to the operation of the
-            `check_node` function.
+            	These properties are used in the function to determine whether the
+            node is a call to a function, method, or module, and to return a tuple
+            of booleans indicating whether each of these types of calls is present
+            in the node.
+            
+        modules (dict): list of modules that are available for call_module operation
+            in the given node.
 
     Returns:
-        bool: a list of boolean values indicating whether each operation on the
-        given node can be performed.
+        bool: a list of booleans indicating whether each operation can be performed
+        on the given node.
 
     """
     is_call_function = node.op == "call_function" and node.target in func_list
@@ -147,22 +149,18 @@ def check_node(node, modules):
 
 def get_combined_dict(default_dict, additional_dict):
     """
-    combines two dictionaries, creating a new dictionary that contains all the
-    keys and values from both sources. It uses the `copy()` method to create a new
-    instance of the `default_dict` and then updates it with the contents of the
-    `additional_dict`. The resulting dictionary is returned in the function's
-    return statement.
+    combines two dictionaries by copying the contents of `default_dict` and updating
+    it with the values from `additional_dict`, returning a new dictionary with the
+    combined values.
 
     Args:
-        default_dict (dict): initial set of dict values that will be combined with
-            the values from `additional_dict`.
-        additional_dict (dict): additional dict to be merged with the default dict
-            to produce the final combined dict returned by the `get_combined_dict`
-            function.
+        default_dict (dict): initial dictionary that will be combined with the `additional_dict`.
+        additional_dict (dict): 2nd dict that gets merged with the default dict
+            to form the final combined dict.
 
     Returns:
-        dict: a new dictionary that contains the contents of both the default and
-        additional dictionaries after being updated.
+        dict: a combined dictionary containing the values from both the default
+        and additional dictionaries.
 
     """
     d = default_dict.copy()
@@ -171,24 +169,22 @@ def get_combined_dict(default_dict, additional_dict):
 
 def is_per_tensor(qscheme):
     """
-    determines whether a given tensor scheme is either affine or symmetric per-tensor,
-    based on the value of the `qscheme` variable.
+    checks if a given tensor scheme is either affine or symmetric per tensor. It
+    returns a boolean value indicating whether the scheme matches one of these types.
 
     Args:
-        qscheme (`torch.Tensor` object.): 3D tensor transformation scheme, which
-            is used to determine if the given 3D tensor can be transformed using
-            an affine or symmetric operation.
+        qscheme (tensor.): transformation scheme for which the method checks if
+            it is per-tensor affine or symmetric.
             
-            		- `torch.per_tensor_affine`: Indicates that the tensor is affine
-            transformable across all dimensions.
-            		- `torch.per_tensor_symmetric`: Indicates that the tensor is symmetric.
-            
-            	The function returns `True` if either of these properties is satisfied,
-            and `False` otherwise.
+            		- `torch.per_tensor_affine`: This indicates that the tensor is affine
+            transformable, meaning it can be transformed using a single affine transformation.
+            		- `torch.per_tensor_symmetric`: This indicates that the tensor is
+            symmetric, meaning it has the same properties before and after being
+            multiplied by its inverse.
             
 
     Returns:
-        bool: a boolean indicating whether the given tensor scheme is per-tensor
+        bool: a boolean value indicating whether the given query scheme is per-tensor
         affine or symmetric.
 
     """
@@ -197,26 +193,23 @@ def is_per_tensor(qscheme):
 
 def is_per_channel(qscheme):
     """
-    determines if a given scheme is a per-channel affine transformation, specifically
-    checking if it belongs to one of three predefined schemes: `torch.per_channel_affine`,
-    `torch.per_channel_affine_float_qparams`, or `torch.per_channel_symmetric`.
+    checks if a given scheme is one of the supported per-channel transformations
+    in PyTorch, including affine and symetric transformations with float-point parameters.
 
     Args:
-        qscheme (`torch.Schedule`.): 3-element list of affine parameters for
-            per-channel transformations, which the function checks to determine
-            if it belongs to one of the specified schemes.
+        qscheme (ndarray or tensor.): query scheme to check if it is supported by
+            the `is_per_channel` function, which returns `True` if the query scheme
+            is one of the specified ones.
             
-            		- `torch.per_channel_affine`: This scheme enables per-channel affine
-            transformations during inference. It allows for modifications to
-            individual channels within a tensor, which can be useful in various applications.
-            		- `torch.per_channel_affine_float_qparams`: This is an extended
-            version of the `per_channel_affine` scheme that additionally provides
-            float-point quantization parameters for each channel. This feature
-            enables precision control during inference and can help reduce
-            computational resources.
-            		- `torch.per_channel_symmetric`: This scheme facilitates symmetric
-            transformations across all channels within a tensor. It is useful in
-            applications where symmetry is crucial, such as image processing tasks.
+            		- `torch.per_channel_affine`: This is an instance of `torch.nn.Module`,
+            which means it has a set of parameters that define a linear transformation
+            to be applied to each channel of the input tensor.
+            		- `torch.per_channel_affine_float_qparams`: This is a special type
+            of `torch.per_channel_affine` instance that includes floating-point
+            parameter values for the affine transformation.
+            		- `torch.per_channel_symmetric`: This is an instance of `torch.nn.Module`
+            that applies a symmetric affine transformation to each channel of the
+            input tensor.
             
 
     Returns:
@@ -236,15 +229,15 @@ def getattr_from_fqn(obj: Any, fqn: str) -> Any:
 
 def to_underlying_dtype(qdtype):
     """
-    maps a quantum-related data type to its underlying classical data type, based
-    on a mapping table.
+    maps a Quartus DataType (qdtype) to its underlying Python data type, checking
+    for supported types and returning the mapped value.
 
     Args:
-        qdtype (dict): 1-dimensional or higher tensor data type that is being
-            converted to its underlying dtype.
+        qdtype (int): ndarray's underlying dtype, which is used to map the ndarray
+            to an equivalent dtype that is supported by the function.
 
     Returns:
-        int: the underlying dtype of a given Quartus-defined datatype.
+        int: the underlying dtype of the given quaternion dimensional type.
 
     """
     DTYPE_MAPPING = {
@@ -263,34 +256,47 @@ def to_underlying_dtype(qdtype):
 
 def get_qparam_dict(observer_or_fake_quant):
     """
-    generates a dictionary of quantization parameters for a given observer or fake
-    quantizer object. It determines the qscheme based on the input, and then
-    calculates the scale, zero point, and other quantization parameters using the
-    observer's/fake quantizer's calculate_qparams method.
+    generates a dictionary of quantization parameters for a given tensor or
+    placeholder observer. It determines the appropriate quantization scheme based
+    on the input observer's qscheme and returns the scale, zero point, and other
+    quantization parameters.
 
     Args:
-        observer_or_fake_quant (observer or fake quantization object, which can
-            be of any valid Python object type.): observer or fake quantizer that
-            the function is working with, and it provides information about the
-            quantization scheme and parameters for the corresponding tensor.
+        observer_or_fake_quant (`torch.ao.quantization.observer.PlaceholderObserver`
+            or any other object that has `dtype`, `qscheme`, `calculate_qparams`,
+            `quant_min`, and `quant_max` attributes.): observer or fake quantizer
+            that provides the necessary parameters for generating high-quality
+            documentation for its corresponding code.
             
-            		- `qscheme`: The quantization scheme applied to the tensor. It can
-            be one of `"per_tensor"`, `"per_channel"` or `"affine"` indicating
-            whether the quantization is performed per tensor, per channel or affine
-            transformation.
-            		- `dtype`: The data type of the tensor.
-            		- `axis`: The axis along which the quantization is applied for
-            per-channel quantization.
-            		- `calculate_qparams()`: A method that returns the scale and zero
-            point of the quantized tensor.
-            		- `quant_min` and `quant_max`: The minimum and maximum values of the
-            quantized tensor, respectively.
+            		- `qscheme`: The quantization scheme used for the observer or fake
+            quant. It can be a string (e.g., "per-tensor", "per-channel") or an
+            instance of `torch.ao.quantization.QuantizationScheme`. If it's not
+            specified, it defaults to None.
+            		- `dtype`: The data type of the observer or fake quant. It can be a
+            string (e.g., "float32", "int8") or an instance of `torch.utils.data.Dataset`.
+            If it's not specified, it defaults to the dtype of the input tensor.
+            		- `axis`: The axis along which the quantization is performed for
+            per-channel quantization scheme. It can be a scalar value or a vector
+            representing the axis(es) in case of per-tensor affine scheme. If it's
+            not specified, it defaults to -1 (the default axis for per-tensor affine).
+            		- `calculate_qparams`: A method that calculates the scale and zero
+            point parameters for the quantization. The method can be a scalar value
+            or a function returning a tuple of two scalars. If it's not specified,
+            it defaults to the `calculate_qparams` method of the `torch.ao.quantization.Observer`.
+            		- `quant_min`: The minimum possible value for the quantized tensor.
+            It can be a scalar value or a function returning a scalar value. If
+            it's not specified, it defaults to the minimum possible value for the
+            input tensor.
+            		- `quant_max`: The maximum possible value for the quantized tensor.
+            It can be a scalar value or a function returning a scalar value. If
+            it's not specified, it defaults to the maximum possible value for the
+            input tensor.
             
 
     Returns:
-        dict: a dictionary containing parameters for quantization, including
-        `qscheme`, `dtype`, `axis`, `scale`, `zero_point`, and additional parameters
-        `quant_min` and `quant_max`.
+        dict: a dictionary containing parameters for quantizing a tensor or fake
+        quantum observer, including the qscheme, dtype, axis, scale, zero_point,
+        and quantization min/max values.
 
     """
     from torch.ao.quantization.observer import PlaceholderObserver
@@ -330,38 +336,54 @@ def get_qparam_dict(observer_or_fake_quant):
 
 def get_swapped_custom_module_class(custom_module, custom_module_class_mapping, qconfig):
     """
-    maps a custom module to its corresponding observed module class based on a
-    mapping, and checks if the input custom module is of a supported type for the
-    mapping.
+    maps a given custom module to its corresponding observed module class based
+    on a provided mapping, and returns the mapped module class.
 
     Args:
-        custom_module (observed module class.): custom module for which the
-            corresponding observed module class needs to be retrieved from the mapping.
+        custom_module (object.): custom module for which the corresponding observed
+            module class needs to be found in the `custom_module_class_mapping`.
             
-            		- `quant_type`: The quantum type associated with the custom module.
-            This is determined by the `qconfig` argument passed to the function.
-            		- `class_mapping`: A mapping of quantum types to corresponding
-            observed module classes. This mapping is retrieved from the
-            `custom_module_class_mapping` argument. If the specified quantum type
-            is not found in the mapping, a `KeyError` is raised.
-            		- `type(custom_module)`: The Python type of the input `custom_module`.
-            This is used to determine whether it corresponds to an observed module
-            class in the `class_mapping`.
+            		- `custom_module`: The deserialized custom module instance that is
+            passed as an argument to the function. Its type is determined by the
+            value of the `quant_type` variable, which is obtained from the `qconfig`
+            parameter.
+            		- `custom_module_class_mapping`: A mapping of quant types to their
+            corresponding observed module classes. This mapping is used to look
+            up the appropriate observed module class for the given quant type.
             
-        custom_module_class_mapping (dict): mapping between observed module types
-            and their corresponding custom classes, as determined by the `qconfig`.
-        qconfig (object of quantitative configuration.): configuration for
-            quantization, which is used to determine the appropriate observed
-            module class for custom modules based on their type.
+        custom_module_class_mapping (mapping of type `quant_type` to class object.):
+            mapping between observed module types and their corresponding classes,
+            which is used to locate the appropriate class for a given observed
+            module type.
             
-            		- `quant_type`: The type of quantity to which the custom module corresponds.
-            		- `class_mapping`: A dictionary mapping the custom module type to
-            its corresponding observed module class.
+            		- `custom_module`: The custom module that needs to be swapped with
+            a corresponding observed module. (type: any)
+            		- `custom_module_class_mapping`: A mapping of quant types to their
+            corresponding observed module classes. (type: dict)
+            		- `qconfig`: The quant configuration object containing the quant
+            type for which the module class needs to be retrieved. (type: qconfig)
             
+        qconfig (dict): configuration of the quantization module, which is used
+            to determine the appropriate class mapping for the custom module based
+            on its type.
 
     Returns:
-        dict: a class mapping from the input custom module to its corresponding
-        observed module.
+        mapping containing the correspondence between quantitative types and
+        observed module classes.: a module class mapping for the given custom
+        module and quant type.
+        
+        		- `quant_type`: This variable represents the quantum type associated
+        with the custom module class mapping. It is obtained from the `qconfig`
+        parameter passed to the function.
+        		- `class_mapping`: This variable contains the mapping between the observed
+        module and its corresponding quantum type. The value of this variable is
+        a dictionary, where the keys are the observed module classes and the values
+        are the corresponding quantum types. If the `custom_module` class is not
+        found in the mapping, an error message is raised.
+        		- `type(custom_module)`: This represents the type of the custom module
+        passed as input to the function. It is used to determine the corresponding
+        quantum type from the `class_mapping` dictionary.
+        
 
     """
     quant_type = get_quant_type(qconfig)
@@ -372,31 +394,27 @@ def get_swapped_custom_module_class(custom_module, custom_module_class_mapping, 
 
 def activation_dtype(qconfig):
     """
-    retrieves the data type of the activation layer of a neural network configuration
-    (qconfig).
+    returns the data type of the activation value associated with a given quantum
+    circuit configuration.
 
     Args:
-        qconfig (activation object, returned by calling the `qconfig.activation()`
-            method.): quantization configuration for the neural network layer,
-            which is used to determine the data type of the activations produced
-            by the layer.
+        qconfig (activation object returned by its corresponding configuration
+            function call.): quantum circuit configuration for which the activation
+            type is determined.
             
-            		- `qconfig`: This is not None and is an instance of the `pytorch.nn.Module`
-            class.
-            		- `activation`: This property returns the activation function of the
-            module.
+            		- `qconfig`: A non-null input indicating the activation type to be
+            performed on the output of the transformed query.
             
 
     Returns:
-        `np.dtype`.: the data type of the activation layer's output.
+        `np.dtype`.: the data type of the activation output of a neural network,
+        as determined by the configuration provided in the input `qconfig`.
         
-        		- The output is an instance of the `torch.utils.checkpoint.Checkpointer`
-        class, which represents the activation to be used in the model.
-        		- The `dtype` attribute of the output is set to the data type of the
-        activation, which can be a numerical value (e.g., `float32`, `float64`)
-        or a string (e.g., `'relu', 'sigmoid', etc.'`).
-        		- The `requires_grad` attribute of the output is set to `False`, indicating
-        that the activation does not support gradient computation.
+        		- The activation function that is used to compute the output for each
+        element in the input tensor. (Eg., `ReLU`, `Sigmoid`, etc.)
+        		- The data type of the output elements after computing the activation
+        function. This can be any of the supported data types by TensorFlow, such
+        as `tf.int32`, `tf.float32`, or others.
         
 
     """
@@ -406,29 +424,25 @@ def activation_dtype(qconfig):
 
 def weight_dtype(qconfig):
     """
-    determines the data type of a given neural network configuration's weight.
+    returns the data type of a given weight value.
 
     Args:
-        qconfig (non-void nullable reference to an object of type QConfiguration.):
-            QuadTree configuration object that provides the necessary information
-            to generate high-quality documentation for the code.
+        qconfig (ndarray, according to the supplied code snippet.): quantum circuit
+            configuration that provides the weight of the quantum register.
             
-            		- `qconfig is not None`: The function assumes that `qconfig` is not
-            an empty or missing value, and provides a more informative error message
-            in case it is.
-            		- `weight = qconfig.weight()`: This line retrieves the `weight`
-            attribute of `qconfig`, which is assumed to be a valid property or
-            attribute of the object.
+            		- `qconfig`: A non-null reference to an instance of the `QuantumConfig`
+            class.
             
 
     Returns:
-        `object`.: the data type of the weight attribute of a QuTiP configuration
-        object.
+        `np.dtype`.: the data type of the weight parameter.
         
-        		- The output is an instance of `np.ndarray`.
-        		- It represents the dtype (data type) of the weights in the quantum circuit.
-        		- The dtype is determined by the `qconfig` object passed as input to the
-        function.
+        	1/ `assert qconfig is not None`: This line verifies that the input `qconfig`
+        is not None before proceeding with the function.
+        	2/ `weight = qconfig.weight()`: This line extracts the `weight` attribute
+        from the `qconfig` object using the `.weight()` method.
+        	3/ `return weight.dtype`: This line returns the `dtype` of the extracted
+        `weight` attribute.
         
 
     """
@@ -521,66 +535,59 @@ def get_qconfig_dtypes(qconfig):
 
 def get_quant_type(qconfig):
     """
-    determines the type of quantization for a given neural network configuration
-    (qconfig) based on the activation and weight dtypes. It returns a QuantType
-    value indicating whether the quantization is dynamic, static, or weight-only.
+    determines the type of quantization to apply to a neural network based on the
+    activation and weight dtypes. It returns `QuantType.DYNAMIC`, `QuantType.STATIC`,
+    or `QuantType.WEIGHT_ONLY` depending on the combination of activation and
+    weight dtypes.
 
     Args:
-        qconfig (non-nullable reference to an object of type `QuantConfig`.):
-            quantum config that determines the type of quantization to apply to
-            the weights and activation, and is used to determine the appropriate
-            QuantType.
+        qconfig (non-nullable reference to an object.): quantization configuration
+            for the neural network, which contains information about the activation
+            and weight types to be used for quantization.
             
-            		- `qconfig is not None`: The input `qconfig` is not `None`.
-            		- `activation()`: Returns the activation function of the quantized
+            		- `qconfig.activation()`: Gets the activation function of the quantized
             model.
-            		- `weight()`: Returns the weight tensor of the quantized model.
-            		- `static_dtypes`: A list of supported static quantization datatypes,
-            including `torch.quint8`, `torch.qint8`, `torch.quint4x2`, `torch.qint32`,
-            `torch.uint8`, `torch.int8`, `torch.int16`, and `torch.int32`.
+            		- `qconfig.weight()`: Gets the weight tensor of the quantized model.
+            		- `static_dtypes`: A list of static data types that are supported
+            for quantization. These include [torch.quint8, torch.qint8, torch.quint4x2,
+            torch.qint32, torch.uint8, torch.int8, torch.int16, torch.int32].
             		- `hasattr(activation, 'is_dynamic')`: Checks if the `activation`
-            object has an attribute called `'is_dynamic'`.
-            		- `is_dynamic`: A boolean indicating whether the activation function
-            is dynamic or not.
-            		- `dtype in static_dtypes`: Checks if the `weight.dtype` is one of
-            the supported static quantization datatypes.
-            		- `or otherwise explain its various properties / attributes`: Explains
-            the various properties and attributes of `qconfig` if it is not a
-            `None` value.
+            object has an attribute called `'is_dynamic'`. If it does, then the
+            activation function is dynamic.
+            		- `hasattr(activation, 'dtype')`: Checks if the `activation` object
+            has an attribute called `'dtype'`. If it does, then the activation
+            function is of a supported type.
+            
+            	If any of these conditions are met, the function returns a `QuantType`
+            value indicating the type of quantization that can be applied to the
+            model. Otherwise, an error message is raised.
             
 
     Returns:
-        `QuantType`.: a `QuantType` value indicating whether the weight and
-        activation are static or dynamic.
+        `QuantType`.: a `QuantType` value indicating whether the Quantizer's weights
+        and activations are dynamic or static.
         
-        		- `QuantType`: This is an enumeration type that represents the type of
-        quantization performed on the input data. The possible values are `DYNAMIC`,
+        		- `QuantType`: This is an enumeration type that represents different
+        types of quantization for neural networks. The possible values are `DYNAMIC`,
         `STATIC`, and `WEIGHT_ONLY`.
-        		- `assert qconfig is not None`: This line of code checks that the `qconfig`
-        parameter is not none or null, indicating that it is a valid configuration
-        object for quantization.
-        		- `activation()`: This method returns the activation function associated
-        with the input data.
-        		- `weight()`: This method returns the weight tensor associated with the
-        input data.
-        		- `static_dtypes`: This is a list of static dtype values that can be
-        used for quantization. These include `torch.quint8`, `torch.qint8`,
+        		- `activation`: This is a property of the input `qconfig` object, which
+        represents the activation function used in the neural network. Its value
+        can be one of the allowed values (`torch.nn.functional.ReLU`,
+        `torch.nn.functional.Sigmoid`, etc.).
+        		- `weight`: This is a property of the input `qconfig` object, which
+        represents the weight tensor of the neural network. Its value can be one
+        of the allowed values (`torch.Tensor`, `torch.nn.parameter.ParameterTuple`,
+        etc.).
+        		- `static_dtypes`: This is a list of allowed static quantization dtypes
+        for neural networks. The values in this list are `torch.quint8`, `torch.qint8`,
         `torch.quint4x2`, `torch.qint32`, `torch.uint8`, `torch.int8`, `torch.int16`,
         and `torch.int32`.
-        		- `if weight.dtype in static_dtypes`: This clause checks if the weight
-        tensor's dtype is in the list of static dtypes. If it is, then the
-        quantization type is determined based on whether the activation function
-        is dynamic or not.
-        		- `elif activation.dtype in static_dtypes`: This clause checks if the
-        activation function's dtype is in the list of static dtypes. If it is,
-        then the quantization type is determined based on whether the weight
-        tensor's dtype is static or not.
-        		- `else`: This clause is executed when neither the weight nor activation
-        tensor's dtype is in the list of static dtypes. In this case, the quantization
-        type is `WEIGHT_ONLY`.
-        		- `raise Exception`: This line of code raises an exception if the
-        combination of activation and weight tensors' dtypes is unrecognized. The
-        message provided includes the dtypes of the activation and weight tensors.
+        		- `hasattr(activation, 'is_dynamic')`: This is a boolean property that
+        indicates whether the activation function has the `is_dynamic` attribute.
+        If it does, then the quantization type is dynamic.
+        		- `hasattr(activation, 'dtype')`: This is a boolean property that indicates
+        whether the activation function has the `dtype` attribute. If it does,
+        then the quantization type is static.
         
 
     """
@@ -930,26 +937,34 @@ def get_fqn_to_example_inputs(
 
     def _patched_module_call(self, *args, **kwargs):
         """
-        modifies its inputs to match those of the original module call by adding
-        or removing arguments based on the difference between the number of
-        positional arguments passed to the original call and the number of key-value
-        pairs in the `kwargs` dictionary. It then calls the original function with
-        these modified inputs.
+        modifies its call to forward a list of normalized arguments and key-value
+        pairs to a submodule's `forward` method, while skipping over `self`. It
+        then returns the result of the original call.
 
         Returns:
-            `orig_module_call`.: a modified version of the original function call,
-            where the inputs to the original function are replaced with a subset
-            of the original inputs and additional keyword arguments.
+            `OrigModuleCall`.: a modified version of the original module call,
+            where some of the positional arguments have been replaced with values
+            from the `normalized_kwargs` dictionary.
             
-            		- `fqn`: The fully qualified name (FQN) of the module, which is not
-            None if the function is successful in finding an example input for the
-            submodule.
-            		- `submodule_example_inputs_tuple`: A tuple containing the example
-            inputs for the submodule, which are obtained by extending the normalized
-            keyword arguments with the `popitem` method and then converting them
-            to a tuple.
-            		- `orig_module_call`: The original module call, which is passed as
-            an argument to the function and is used to make the actual module call.
+            		- `fqn`: A Noneable representing the fully qualified name of the
+            module being called, or None if no such information is available.
+            		- `submodule_example_inputs`: A list of positional arguments passed
+            to the called module, obtained by recursively traversing the function's
+            call tree and removing any duplicates.
+            		- `normalized_kwargs`: A dictionary containing the keyword arguments
+            passed to the called module, after normalizing their keys using the
+            forwarded mapping from the parent module's `forward` attribute. The
+            size of this dictionary indicates the number of non-empty keyword arguments.
+            		- `num_args`: An integer representing the total number of positional
+            arguments passed to the called module, including any duplicates removed
+            from `submodule_example_inputs`.
+            		- `num_to_pop`: An integer representing the number of positive
+            integers in the list of `num_args` that have not been popped from the
+            `submodule_example_inputs` list during iteration.
+            
+            	These properties are used to determine how many arguments to pop from
+            the `submodule_example_inputs` list during each iteration, based on
+            the number of non-empty keyword arguments passed to the called module.
             
 
         """
