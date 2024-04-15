@@ -20,17 +20,22 @@ def _disable_dynamo(fn=None, recursive=True):
         @functools.wraps(fn)
         def inner(*args, **kwargs):
             """
-            disables dynamic tracing for a given function and its recursive calls
-            using `torch._dynamo`.
+            disable the dynamic computation graph recording for a given function
+            `fn` and its nested calls recursively by wrapping them with
+            `torch._dynamo.disable(fn, recursive)`.
 
             Returns:
-                `torch.dynamo.DisabledFunction`.: a disabled version of the provided
-                function.
+                `torch.Tensor`.: the result of calling the provided function `fn`
+                with the passed arguments and keyword arguments after disabling
+                dynamic computation tracing using `torch._dynamo.disable(fn, recursive)`.
                 
-                		- `fn`: The original function being called recursively.
-                		- `args`: The arguments passed to the original function.
-                		- `kwargs`: The keyword arguments passed to the original function.
-                
+                		- The function returns a tuple containing the result of calling
+                the provided function `fn` with the passed arguments `*args` and
+                keyword arguments `**kwargs`.
+                		- The returned value is a dynamo-enabled version of the original
+                function call.
+                		- The `torch._dynamo` module is imported to enable dynamo-based
+                tracing of the function.
 
             """
             import torch._dynamo
