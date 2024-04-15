@@ -27,6 +27,14 @@ except ImportError as e:
 
 
 def get_processes_running_python_tests() -> List[Any]:
+    """
+    iterates through running processes using `psutil` and adds to a list any
+    processes that have "python" in their name and execute a command using `cmdline()`.
+
+    Returns:
+        List[Any]: a list of Python processes running on the system.
+
+    """
     python_processes = []
     for process in psutil.process_iter():
         try:
@@ -39,6 +47,15 @@ def get_processes_running_python_tests() -> List[Any]:
 
 
 def get_per_process_cpu_info() -> List[Dict[str, Any]]:
+    """
+    retrieves CPU information and memory usage for each running Python test process,
+    and returns a list of dictionaries containing this information for each process.
+
+    Returns:
+        List[Dict[str, Any]]: a list of dictionaries containing CPU information
+        and memory usage for each running Python process.
+
+    """
     processes = get_processes_running_python_tests()
     per_process_info = []
     for p in processes:
@@ -68,6 +85,18 @@ def get_per_process_cpu_info() -> List[Dict[str, Any]]:
 
 
 def get_per_process_gpu_info(handle: Any) -> List[Dict[str, Any]]:
+    """
+    retrieves GPU information for each running process on a host using the NVML library.
+
+    Args:
+        handle (Any): 3D NVML handle that is used to retrieve GPU information for
+            each process.
+
+    Returns:
+        List[Dict[str, Any]]: a list of dictionaries containing information about
+        each running process on the system, including its PID and GPU memory usage.
+
+    """
     processes = pynvml.nvmlDeviceGetComputeRunningProcesses(handle)
     per_process_info = []
     for p in processes:
@@ -81,6 +110,15 @@ def rocm_ret_ok(ret: int) -> Any:
 
 
 def rocm_list_devices() -> List[int]:
+    """
+    calls the `rocmsmi.rsmi_num_monitor_devices` function to retrieve a list of
+    device IDs. It then returns the list of IDs as an integer list.
+
+    Returns:
+        List[int]: a list of integer indices representing the available Rocket
+        Morty devices.
+
+    """
     num = c_uint32(0)
     ret = rocmsmi.rsmi_num_monitor_devices(byref(num))
     if rocm_ret_ok(ret):
@@ -89,6 +127,18 @@ def rocm_list_devices() -> List[int]:
 
 
 def rocm_get_mem_use(device: int) -> float:
+    """
+    calculates the memory usage ratio for a given device, returning the result as
+    a floating-point number.
+
+    Args:
+        device (int): 64-bit integer value of the device for which memory usage
+            is to be calculated.
+
+    Returns:
+        float: a fraction representing the percentage of memory used by a RoCM device.
+
+    """
     memoryUse = c_uint64()
     memoryTot = c_uint64()
 
@@ -101,6 +151,19 @@ def rocm_get_mem_use(device: int) -> float:
 
 
 def rocm_get_gpu_use(device: int) -> float:
+    """
+    returns the current percentage of a Rocket Morty GPU's use based on an RMI
+    call to `rocmsmi.rsmi_dev_busy_percent_get`.
+
+    Args:
+        device (int): 3D accelerator card to be checked for busy percent, and it
+            takes an integer value ranging from 0 to 255, inclusive of ROCMSMI
+            device IDs.
+
+    Returns:
+        float: a percentage value representing the current GPU utilization.
+
+    """
     percent = c_uint32()
     ret = rocmsmi.rsmi_dev_busy_percent_get(device, byref(percent))
     if rocm_ret_ok(ret):
@@ -109,6 +172,15 @@ def rocm_get_gpu_use(device: int) -> float:
 
 
 def rocm_get_pid_list() -> List[Any]:
+    """
+    computes and returns a list of process IDs using the Rocks Machine Interface
+    (RMI). It takes no arguments and returns a list of process IDs on success, or
+    an empty list on failure.
+
+    Returns:
+        List[Any]: a list of process IDs.
+
+    """
     num_items = c_uint32()
     ret = rocmsmi.rsmi_compute_process_info_get(None, byref(num_items))
     if rocm_ret_ok(ret):
@@ -123,6 +195,15 @@ def rocm_get_pid_list() -> List[Any]:
 
 
 def rocm_get_per_process_gpu_info() -> List[Dict[str, Any]]:
+    """
+    retrieves GPU information for each process in a list and returns a list of
+    dictionaries containing "pid" and "gpu_memory" fields.
+
+    Returns:
+        List[Dict[str, Any]]: a list of dictionaries containing GPU information
+        for each process in a given list.
+
+    """
     per_process_info = []
     for pid in rocm_get_pid_list():
         proc = rsmi_process_info_t()
@@ -153,6 +234,15 @@ if __name__ == "__main__":
     kill_now = False
 
     def exit_gracefully(*args: Any) -> None:
+        """
+        sets a global variable `kill_now` to `True`, indicating that the program
+        should exit gracefully with the specified arguments.
+
+        Args:
+            	-args (Any): 0 or more arguments passed to the function, which are
+                stored in a variable called `kill_now`.
+
+        """
         global kill_now
         kill_now = True
 
