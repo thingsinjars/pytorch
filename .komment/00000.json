@@ -1,0 +1,882 @@
+[
+  {
+    "name": "autograd.py",
+    "path": "torchgen/api/autograd.py",
+    "content": {
+      "structured": {
+        "description": "",
+        "items": [
+          {
+            "id": "842eb1c8-21a0-4965-9669-5d541d0033e3",
+            "ancestors": [],
+            "type": "function",
+            "name": "create_view_copy_from_view_derivative",
+            "location": {
+              "offset": " ",
+              "indent": 8,
+              "start": 172,
+              "insert": 175
+            },
+            "params": [
+              {
+                "name": "g",
+                "value": null,
+                "type": "NativeFunctionsViewGroup"
+              }
+            ],
+            "returns": "Optional[\"DifferentiabilityInfo\"]",
+            "skip": false,
+            "docLength": null,
+            "stripped": "if g.view_copy is None:\n            return None\n        f = g.view_copy\n\n        name_split_by_period = self.name.split(\".\", maxsplit=2)\n        # Append a \"_copy\" to the base name of the operator (but keep the overload name the same)\n        view_copy_name = f\"{name_split_by_period[0]}_copy.\" + \".\".join(\n            name_split_by_period[1:]\n        )\n        view_copy_op_name = None if self.op is None else f\"{self.op}_copy\"\n\n        return DifferentiabilityInfo(\n            # Use the \"_copy\" version of name/func/op\n            name=view_copy_name,\n            func=f,\n            op=view_copy_op_name,\n            # But keep all derivative info the same\n            derivatives=self.derivatives,\n            forward_derivatives=self.forward_derivatives,\n            all_saved_inputs=self.all_saved_inputs,\n            all_saved_outputs=self.all_saved_outputs,\n            available_named_gradients=self.available_named_gradients,\n            used_named_gradients=self.used_named_gradients,\n            args_with_derivatives=self.args_with_derivatives,\n            non_differentiable_arg_names=self.non_differentiable_arg_names,\n            output_differentiability=self.output_differentiability,\n            output_differentiability_conditions=self.output_differentiability_conditions,\n        )",
+            "length": 31,
+            "comment": {
+              "description": "Creates a new view derivative object based on an existing view derivative object. It returns the created derivative object with the same name, function, and op as the original, but with additional information such as derivatives, forward derivatives, and conditions for output differentiability.",
+              "params": [
+                {
+                  "name": "g",
+                  "type": "NativeFunctionsViewGroup",
+                  "value": null,
+                  "description": "NativeFunctionsViewGroup object for which the view copy is to be created."
+                }
+              ],
+              "returns": {
+                "type": "Optional[\"DifferentiabilityInfo\"]",
+                "description": "a `DifferentiabilityInfo` object containing the same derivative information as the original function, but with an added \"_copy\" prefix to the name, funcion, and op names."
+              }
+            }
+          },
+          {
+            "id": "79f1fa63-440c-4b29-bf10-0ed33f72df11",
+            "ancestors": [],
+            "type": "function",
+            "name": "uses_ident",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 205,
+              "insert": 206
+            },
+            "params": [
+              {
+                "name": "info",
+                "value": null,
+                "type": "Optional[DifferentiabilityInfo]"
+              },
+              {
+                "name": "ident",
+                "value": null,
+                "type": "str"
+              }
+            ],
+            "returns": "bool",
+            "skip": false,
+            "docLength": null,
+            "stripped": "if info is None:\n        return False\n    for derivative in info.derivatives:\n        formula = derivative.formula\n        if re.search(IDENT_REGEX.format(ident), formula):\n            return True\n    return False",
+            "length": 8,
+            "comment": {
+              "description": "Checks whether a given string appears in a list of derivative formulas provided as `info.derivatives`.",
+              "params": [
+                {
+                  "name": "info",
+                  "type": "Optional[DifferentiabilityInfo]",
+                  "value": null,
+                  "description": "DifferentiabilityInfo object which provides information about the derivative of a given function."
+                },
+                {
+                  "name": "ident",
+                  "type": "str",
+                  "value": null,
+                  "description": "identifier of a symbol for which the function checks if it appears in any of the derivatives provided in the `info.derivatives` list."
+                }
+              ],
+              "returns": {
+                "type": "bool",
+                "description": "a boolean value indicating whether an identifier is present in the given derivative formula."
+              }
+            }
+          },
+          {
+            "id": "68499cb3-9ed9-4bfe-a2cd-86e45bea8116",
+            "ancestors": [],
+            "type": "function",
+            "name": "dispatch_strategy",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 262,
+              "insert": 263
+            },
+            "params": [
+              {
+                "name": "fn",
+                "value": null,
+                "type": "NativeFunctionWithDifferentiabilityInfo"
+              }
+            ],
+            "returns": "str",
+            "skip": false,
+            "docLength": 17,
+            "stripped": "# fn is derived as long as any of its per-key differentiability infos\n# has_derivatives. dispatch_strategy() is used to guard generation of fns in VariableType\n# and ADInplaceOrViewType. We want to generate these functions as long as a\n# derivative is defined for ANY dispatch key.\nif fn.func.is_abstract or (\n        fn.info is not None and any(info.has_derivatives for info in fn.info.values())\n    ):\n        # If the function is abstract (not implemented on at::Type), we must\n        # call the implementation on the derived type with unpacked tensors.\n\n        # If the function has a derivative specified and is concrete, we could\n        # call either implementation. We prefer the calling the derived\n        # type's implementation with unpacked tensors because it is more\n        # performant in some cases: any internal calls to other ATen functions\n        # won't have the history tracked.\n\n        # If the function has a type dispatched argument (i.e. is a factory),\n        # we prefer calling the derived type's implementation both because it is\n        # more performant and to ensure factory functions return tensors with _version\n        # of 0 (probably not strictly necessary, but nice to have to keeps versions simple\n        # to understand.\n\n        return \"use_derived\"\n    else:\n        # If the function is concrete (we don't have to override it) and we\n        # didn't declare it in derivatives.yaml, we'll assume that it is\n        # actually implemented out of differentiable functions. (This\n        # assumption might not hold, but then you'll see gradcheck fail.)\n        return \"use_type\"",
+            "length": 47,
+            "comment": {
+              "description": "Determines the strategy for calling the underlying implementation of a function based on whether it is abstract or has a derivative specified. It returns either \"use_derived\" or \"use_type\" depending on the situation.",
+              "params": [
+                {
+                  "name": "fn",
+                  "type": "NativeFunctionWithDifferentiabilityInfo",
+                  "value": null,
+                  "description": "NativeFunctionWithDifferentiabilityInfo object that is being processed by the function."
+                }
+              ],
+              "returns": {
+                "type": "str",
+                "description": "a string indicating which strategy to use for calling the underlying implementation of a declaration: \"use_derived\" or \"use_type\"."
+              }
+            }
+          },
+          {
+            "id": "581bed82-4950-49f9-a25e-d969c7246c29",
+            "ancestors": [],
+            "type": "function",
+            "name": "is_reference_for_foreach",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 328,
+              "insert": 332
+            },
+            "params": [
+              {
+                "name": "f",
+                "value": null,
+                "type": "NativeFunction"
+              },
+              {
+                "name": "function_schema",
+                "value": null,
+                "type": "FunctionSchema"
+              }
+            ],
+            "returns": "bool",
+            "skip": false,
+            "docLength": null,
+            "stripped": "return (\n        f.func.name.name.base.split(\"_foreach_\")[-1] == function_schema.name.name.base\n        and (\n            not function_schema.name.name.inplace\n            or str(f.func.name) in _foreach_with_inplace_ref\n        )\n        and all(\n            ref_arg.type in (arg.type, getattr(arg.type, \"elem\", None))\n            for arg, ref_arg in zip(\n                f.func.arguments.flat_non_out,\n                function_schema.arguments.flat_non_out,\n            )\n        )\n    )",
+            "length": 18,
+            "comment": {
+              "description": "Checks if a given native function is a reference for a foreach loop by checking the function name, its arguments, and whether it's an inplace operation or not.",
+              "params": [
+                {
+                  "name": "f",
+                  "type": "NativeFunction",
+                  "value": null,
+                  "description": "native function whose name and arguments are being checked against the given `FunctionSchema`."
+                },
+                {
+                  "name": "function_schema",
+                  "type": "FunctionSchema",
+                  "value": null,
+                  "description": "schema of the function for which the `is_reference_for_foreach` method is being called, providing information about the name and type of the function's arguments and return value."
+                }
+              ],
+              "returns": {
+                "type": "bool",
+                "description": "a boolean value indicating whether a given native function is a reference for foreach."
+              }
+            }
+          },
+          {
+            "id": "5204e121-3776-4fc9-9591-2d48fef0b751",
+            "ancestors": [],
+            "type": "function",
+            "name": "gen_foreach_derivativeinfo",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 349,
+              "insert": 359
+            },
+            "params": [
+              {
+                "name": "foreach_function",
+                "value": null,
+                "type": "NativeFunction"
+              },
+              {
+                "name": "functional_info_by_signature",
+                "value": null,
+                "type": "Dict[\n        FunctionSchema, Dict[str, DifferentiabilityInfo]\n    ]"
+              },
+              {
+                "name": "non_functional_info_by_signature",
+                "value": null,
+                "type": "Dict[\n        FunctionSchema, Dict[str, DifferentiabilityInfo]\n    ]"
+              },
+              {
+                "name": "dispatch_key",
+                "value": "str",
+                "type": "\"Default\""
+              }
+            ],
+            "returns": "Tuple[Optional[DifferentiabilityInfo], bool]",
+            "skip": false,
+            "docLength": 4,
+            "stripped": "ref_diff_info: Optional[DifferentiabilityInfo] = None\nfor function_schema, diff_info in functional_info_by_signature.items():\n        if not is_reference_for_foreach(foreach_function, function_schema):\n            continue\n        ref_diff_info = diff_info[dispatch_key]\n        if ref_diff_info is not None:\n            break\n# note(crcrpar): It seems like `zero`'s info isn't available in functional_info_by_signature\n# while the info of `zero_` is in non_functional_info_by_signature\nif (\n        ref_diff_info is None\n        and foreach_function.func.kind() == SchemaKind.inplace\n        and str(foreach_function.func.name) in _foreach_with_inplace_ref\n    ):\n        for function_schema, diff_info in non_functional_info_by_signature.items():\n            if not is_reference_for_foreach(foreach_function, function_schema):\n                continue\n            ref_diff_info = diff_info[dispatch_key]\n            if ref_diff_info is not None:\n                break\nif ref_diff_info is None:\n        return None, False\n# non out-place uses the existing Derivative.\nif foreach_function.func.kind() == SchemaKind.inplace:\n        return ref_diff_info, False\nmap_refarg2foreacharg, map_name2arg = {}, {}\nfor i, (arg, ref_arg) in enumerate(\n        zip(\n            foreach_function.func.arguments.flat_non_out,\n            function_schema.arguments.flat_non_out,\n        )\n    ):\n        map_refarg2foreacharg[ref_arg.name] = arg.name\n        map_name2arg[arg.name] = arg\nall_saved_inputs, all_saved_outputs, all_var_names = [], [], []\nmodified_derivative_formulas = []\nfor i, derivative in enumerate(ref_diff_info.derivatives):\n        modified_formula = derivative.formula.replace(\"grad\", \"grads[i]\").replace(\n            \"result\", \"result[i]\"\n        )\n        saved_inputs, saved_outputs = [], []\n        # note(crcrpar): This context seems necessary to call `cpp.argument_type`\n        with local.parametrize(\n            use_const_ref_for_mutable_tensors=foreach_function.use_const_ref_for_mutable_tensors,\n            use_ilistref_for_tensor_lists=foreach_function.part_of_structured_group,\n        ):\n            for ref_input in derivative.saved_inputs:\n                ref_input_jit_name = ref_input.expr.split(\".\")[0]\n                mapped_name = map_refarg2foreacharg[ref_input_jit_name]\n                if isinstance(map_name2arg[mapped_name].type, ListType):\n                    mapped_expr = mapped_name + \"[i]\"\n                else:\n                    mapped_expr = mapped_name\n                new_expr = ref_input.expr.replace(ref_input_jit_name, mapped_expr)\n                modified_formula = modified_formula.replace(\n                    cast(str, ref_input.nctype.name), new_expr\n                )\n\n                nctype = cpp.argument_type(map_name2arg[mapped_name], binds=mapped_name)\n                canonical_nctype = NamedCType(\n                    nctype.name, nctype.type.remove_const_ref()\n                )\n                saved_inputs.append(\n                    SavedAttribute(nctype=canonical_nctype, expr=mapped_name)\n                )\n            for ref_output in derivative.saved_outputs:\n                if ref_output.nctype.name == \"result\":\n                    saved_outputs.append(\n                        SavedAttribute(\n                            nctype=NamedCType(\n                                name=\"result\", type=BaseCType(tensorListT)\n                            ),\n                            expr=\"result\",\n                        )\n                    )\n                else:\n                    raise RuntimeError(\"\")\n        var_names = [map_refarg2foreacharg[var] for var in derivative.var_names]\n        all_var_names.extend(var_names)\n        all_saved_inputs.extend(saved_inputs)\n        all_saved_outputs.extend(saved_outputs)\n        modified_derivative = Derivative(\n            formula=modified_formula,\n            original_formula=derivative.formula,\n            var_names=tuple(var_names),\n            saved_inputs=tuple(saved_inputs),\n            saved_outputs=tuple(saved_outputs),\n            named_gradients=set(),\n        )\n        modified_derivative_formulas.append(modified_derivative)\nwith local.parametrize(\n        use_const_ref_for_mutable_tensors=foreach_function.use_const_ref_for_mutable_tensors,\n        use_ilistref_for_tensor_lists=foreach_function.part_of_structured_group,\n    ):\n        args_with_derivatives = [\n            Binding(\n                name=arg.name,\n                nctype=cpp.argument_type(arg, binds=arg.name),\n                argument=arg,\n                default=None,\n            )\n            for arg in foreach_function.func.arguments.flat_non_out\n            if arg.name in all_var_names\n        ]\nforward_derivatives: List[ForwardDerivative] = []\nfw_derivative: ForwardDerivative\nfor fw_derivative in ref_diff_info.forward_derivatives:\n        var_names: List[str] = list(fw_derivative.var_names)  # type: ignore[no-redef]\n        var_types: List[Type] = list(fw_derivative.var_types)\n        required_inputs_fw_grad: List[str] = []\n        required_inputs_primal: List[str] = []\n        if fw_derivative.required_inputs_fw_grad is not None:\n            required_inputs_fw_grad = list(fw_derivative.required_inputs_fw_grad)\n        if fw_derivative.required_inputs_primal:\n            required_inputs_primal = list(fw_derivative.required_inputs_primal)\n        modified_formula = fw_derivative.formula\n\n        # Foreach's result is TensorList\n        if \"result\" in modified_formula:\n            modified_formula = fw_derivative.formula.replace(\"result\", \"result[i]\")\n\n        for foreach_arg, ref_arg in zip(\n            foreach_function.func.arguments.flat_non_out,\n            ref_diff_info.func.func.arguments.flat_non_out,\n        ):\n            # Modify reference forward formula\n            if (\n                isinstance(foreach_arg.type, ListType)\n                and not foreach_arg.type.is_tensor_like()\n            ):\n                # Assuming ScalarList\n                modified_formula = modified_formula.replace(\n                    ref_arg.name, foreach_arg.name + \"[i]\"\n                )\n            elif foreach_arg.type.is_tensor_like():\n                # Assuming TensorList / Tensor\n                # assert isinstance(foreach_arg.type, ListType), f\"{foreach_function.func.name}, {foreach_arg.type}\"\n                assert isinstance(foreach_arg.type, ListType) or (\n                    foreach_arg.type == BaseType(BaseTy.Tensor)\n                    and str(foreach_function.func.name) in _foreach_with_tensor_overload\n                ), f\"{foreach_function.func.name}, {foreach_arg.type}\"\n                for suffix in (\"_p\", \"_t\"):\n                    curr_expr = ref_arg.name + suffix\n                    if curr_expr in modified_formula:\n                        new_expr = foreach_arg.name + suffix\n                        modified_formula = modified_formula.replace(curr_expr, new_expr)\n            else:\n                # Assuming Scalar\n                if foreach_arg.name != ref_arg.name:\n                    modified_formula = modified_formula.replace(\n                        ref_arg.name, foreach_arg.name\n                    )\n\n            # note(crcrpar): there should exist a cooler way...\n            for i, name in enumerate(var_names):\n                if name == ref_arg.name:\n                    var_names[i] = foreach_arg.name\n                    var_types[i] = foreach_arg.type\n            for i, name in enumerate(required_inputs_fw_grad):\n                if name == ref_arg.name:\n                    required_inputs_fw_grad[i] = foreach_arg.name\n            for i, name in enumerate(required_inputs_primal):\n                if name == ref_arg.name:\n                    required_inputs_primal[i] = foreach_arg.name\n        forward_derivatives.append(\n            ForwardDerivative(\n                formula=modified_formula,\n                var_names=tuple(var_names),\n                var_types=tuple(var_types),\n                required_inputs_fw_grad=tuple(required_inputs_fw_grad),\n                required_inputs_primal=tuple(required_inputs_primal),\n                required_original_self_value=fw_derivative.required_original_self_value,\n                is_reusing_outplace_formula=fw_derivative.is_reusing_outplace_formula,\n            )\n        )\nreturn (\n        DifferentiabilityInfo(\n            name=foreach_function.func.name.name.base,\n            func=foreach_function,\n            op=f\"Foreach{ref_diff_info.op}{foreach_function.func.name.overload_name}\",\n            derivatives=modified_derivative_formulas,\n            forward_derivatives=forward_derivatives,\n            all_saved_inputs=tuple(set(all_saved_inputs)),\n            all_saved_outputs=tuple(set(all_saved_outputs)),\n            available_named_gradients=(),\n            used_named_gradients=set(),\n            args_with_derivatives=args_with_derivatives,\n            non_differentiable_arg_names=[],\n            output_differentiability=None,\n            output_differentiability_conditions=None,\n        ),\n        True,\n    )",
+            "length": 214,
+            "comment": {
+              "description": "Performs forward difference calculations for a given `ForEach` function. It modifies the formula of the `ForEach` function to reflect the changed arguments and outputs, generates new saved inputs and outputs, and returns the updated `DifferentiabilityInfo`.",
+              "params": [
+                {
+                  "name": "foreach_function",
+                  "type": "NativeFunction",
+                  "value": null,
+                  "description": "\"for loop\" function being differentiated, and it is used to modify the formula of the derivative by replacing the loop variable with the output of the loop."
+                },
+                {
+                  "name": "functional_info_by_signature",
+                  "type": "Dict[\n        FunctionSchema, Dict[str, DifferentiabilityInfo]\n    ]",
+                  "value": null,
+                  "description": "3-tuples of (func, op, name) for each function in the graph, which allows the function to differentiate its output based on the signature of the function rather than its direct callers."
+                },
+                {
+                  "name": "non_functional_info_by_signature",
+                  "type": "Dict[\n        FunctionSchema, Dict[str, DifferentiabilityInfo]\n    ]",
+                  "value": null,
+                  "description": "information about the functional form of each forward derivative in the output differentiability information, including the signature of the derivative and whether it is non-differentiable at certain inputs."
+                },
+                {
+                  "name": "dispatch_key",
+                  "type": "\"Default\"",
+                  "value": "str",
+                  "description": "key of the corresponding `ForwardDerivative` object in the derived `DifferentiabilityInfo` instance, which allows efficient lookups and manipulation of the derivatives for the corresponding `Foreach` operation within the function."
+                }
+              ],
+              "returns": {
+                "type": "Tuple[Optional[DifferentiabilityInfo], bool]",
+                "description": "a tuple containing:\n\n* Differentiability information for each variable in the Foreach loop.\n* A list of Forward Derivatives, representing the derivative of the Foreach loop's formula.\n* Other relevant information (such as the name of the function, and whether or not the output is non-differentiable)."
+              }
+            }
+          },
+          {
+            "id": "0a3a8261-3414-4b67-aec7-41235dca49d4",
+            "ancestors": [],
+            "type": "function",
+            "name": "match_differentiability_info",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 565,
+              "insert": 569
+            },
+            "params": [
+              {
+                "name": "native_functions",
+                "value": null,
+                "type": "List[NativeFunction]"
+              },
+              {
+                "name": "differentiability_infos",
+                "value": null,
+                "type": "Dict[FunctionSchema, Dict[str, DifferentiabilityInfo]]"
+              }
+            ],
+            "returns": "List[NativeFunctionWithDifferentiabilityInfo]",
+            "skip": false,
+            "docLength": 4,
+            "stripped": "functional_info_by_signature = {\n        schema.signature(strip_default=True): info_dict\n        for schema, info_dict in differentiability_infos.items()\n        if schema.kind() == SchemaKind.functional\n    }\nnon_functional_info_by_signature = {\n        schema.signature(strip_default=True): info_dict\n        for schema, info_dict in differentiability_infos.items()\n        if schema.kind() != SchemaKind.functional\n    }\ndef find_info(\n        f: NativeFunction,\n    ) -> Tuple[Optional[Dict[str, DifferentiabilityInfo]], bool]:\n        # Don't bother matching info to generated out= variants\n        if \"generated\" in f.tags and f.func.kind() == SchemaKind.out:\n            return None, False\n\n        # (1) Check for an exact match\n        if f.func in differentiability_infos:\n            return differentiability_infos[f.func], True\n\n        # (2) If no exact match, check if the out-of-place variant\n        # of this operator has a match.\n        # i.e mul() for mul_() or mul_out()\n        # note(crcrpar): Check foreach or not because in-place foreach functions use backward defined for the existing\n        # native functions instead of the out-place counterparts.\n        f_sig = f.func.signature(strip_default=True)\n        if f_sig in functional_info_by_signature and not is_foreach_func(f):\n            return functional_info_by_signature[f_sig], False\n\n        # (3) Some operators have a derivative explicitly defined for the mutable\n        # variant, but get a code-generated out-of-place variant which does *not*\n        # come with a derivative formula.\n        # For the generated out-of-place variant, use the mutable variant's formula\n        # if it exists.\n        if \"generated\" in f.tags and f_sig in non_functional_info_by_signature:\n            info_dict = non_functional_info_by_signature[f_sig]\n            # See https://github.com/pytorch/pytorch/pull/76320/files#r874816389\n            assert not any(\n                any(\"self\" in str(inpt.nctype.name) for inpt in info.all_saved_inputs)\n                for info in info_dict.values()\n            ), f\"\"\"\\\nAttempted to convert a derivative formula for a mutable operator\n to be used by automatically by its functional variant (\"{str(f.func)}\").\n this is not currently supported (we'd need to fix up the formula in the codegen).\"\"\"\n            return info_dict, False\n\n        # (4) Generate derivative information of foreach functions if none is defined in `derivatives.yaml`\n        if is_foreach_func(f):\n            assert f.func not in differentiability_infos\n            diff_info, is_generated = gen_foreach_derivativeinfo(\n                f,\n                functional_info_by_signature,\n                non_functional_info_by_signature,\n            )\n            if diff_info is None:\n                return None, False\n            # TODO(crcrpar): Avoid hard coding \"Default\" ideally.\n            diff_info_dict = {\"Default\": diff_info}\n            if is_generated:\n                differentiability_infos[f.func] = diff_info_dict\n                functional_info_by_signature[f.func] = diff_info_dict\n            return diff_info_dict, is_generated\n\n        return None, False\nresult: List[NativeFunctionWithDifferentiabilityInfo] = []\nfor f in native_functions:\n        info_dict, is_exact_match = find_info(f)\n\n        # Currently, the '.strides()' to 'strides_or_error' replacement does not support\n        # 'self' derivatives of an inplace function, so we must check for this case.\n        if f.func.kind() == SchemaKind.inplace and (info_dict is not None):\n            for info in info_dict.values():\n                for derivative in info.derivatives:\n                    if \"self\" in derivative.var_names:\n                        for saved_input in derivative.saved_inputs:\n                            assert \"strides_or_error\" not in saved_input.expr, (\n                                \"Calling '.strides()' in the 'self' derivative formula of an \"\n                                f\"in-place function is not supported: {f.func}\"\n                            )\n\n        if not info_dict:\n            result.append(\n                NativeFunctionWithDifferentiabilityInfo(\n                    func=f, info=None, fw_derivatives=None\n                )\n            )\n            continue\n\n        fw_derivative_dict: Dict[str, Sequence[ForwardDerivative]] = {}\n        for key, info in info_dict.items():\n            if not info.forward_derivatives:\n                fw_derivative_dict[key] = []\n                continue\n\n            forward_derivatives = info.forward_derivatives\n\n            # For functions that have a single def for out-of-place and inplace (like abs())\n            if f.func.kind() == SchemaKind.inplace:\n                # For inplace functions there is a little bit of work to do:\n                #  1) Validate the formula and make sure the input that is modified in not used:\n                #    - If there is a formula for the inplace variant of the function (is_exact_match == True) then\n                #      we make sure that the original value of the input that is being modified inplace (self_p) is\n                #      not used in the formula. Note that the formula can use \"original_self_p\" here and that would\n                #      trigger a clone of the original input.\n                #    - If we are re-using the out of place formula (is_exact_match == False) then we replace every\n                #      occurrence of self_p and self_t by original_self_p and original_self_t. These will be\n                #      populated by cloned version of the original input (either the clone done by the backward AD\n                #      logic if self is also used in a backward formula or a special clone that we add).\n                #  2) At this point, there cannot be a self_p in the formula.\n                #  3) Change \"result\" into \"self_p\" as by design, in the inplace function codegen, the result is\n                #     simply called self (as it is modified inplace).\n                #  4) Update the required primals data in case it used to contain \"result\" but should now contain\n                #     \"self\"\n                #  5) If it is not an exact match, the user formula is not modifying the existing forward grad\n                #     inplace as it should. So add some code that makes sure that we do so if the forward grad\n                #     already exists.\n\n                assert (\n                    len(info.forward_derivatives) == 1\n                )  # Only single output inplace should exist\n                fw_info = info.forward_derivatives[0]\n                formula = fw_info.formula\n\n                def replace_self_with_original_self(formula: str, postfix: str) -> str:\n                    def repl(m: Match[str]) -> str:\n                        return f\"{m.group(1)}original_self{postfix}{m.group(2)}\"\n\n                    return re.sub(IDENT_REGEX.format(f\"self{postfix}\"), repl, formula)\n\n                if re.search(IDENT_REGEX.format(\"self_p\"), formula):\n                    if is_exact_match:\n                        # For manually defined formulas, don't allow the original value to be used\n                        raise RuntimeError(\n                            f'The formula for \"{f.func.name}\" is using the original value of self '\n                            \"that is being modified inplace. This would lead to wrong forward gradients. \"\n                            'Please use \"result\" in the formula only.'\n                        )\n                    else:\n                        # When the original formula is out of place, we save a clone of the primal\n                        # value to be able to access this value if needed\n                        # replace \"self_p\"/\"self_t\" from the formula by \"original_self_p\"/\"original_self_t\"\n                        formula = replace_self_with_original_self(formula, \"_p\")\n                        formula = replace_self_with_original_self(formula, \"_t\")\n\n                # replace \"result\" from the formula by \"self_p\"\n                def repl(m: Match[str]) -> str:\n                    return f\"{m.group(1)}self_p{m.group(2)}\"\n\n                formula = re.sub(IDENT_REGEX.format(\"result\"), repl, formula)\n\n                required_primals = fw_info.required_inputs_primal\n                if re.search(IDENT_REGEX.format(\"self_p\"), formula):\n                    required_primals = (\n                        required_primals + (\"self\",) if required_primals else (\"self\",)\n                    )\n\n                if not is_exact_match:\n                    # NOTE [In-place forward AD formula Optimization]\n                    #\n                    # This optimization transforms the formula to directly do inplace, i.e.\n                    # instead of self_t.copy_(self_t.op()) we do self_t.op_() when the following are met:\n                    #\n                    # 1) the formula satisfies the pattern: \"self_t.op(*args)\"\n                    # 2) \"op\" in (1) needs to be the same as the op the derivative is for\n                    #\n                    # (2) may seem too strict, but currently the only ops that satisfy (1) also satisfy (2)\n                    # If there is a need, we can relax (2) to allow any op that has an in-place variant\n                    is_single_method_on_self_t = False\n                    directly_do_inplace = False\n                    op_name: Optional[str] = None\n                    between_parens: Optional[str] = None\n                    match = re.fullmatch(r\"self_t.([\\w]*)\\((.*)\\)\", formula)\n                    if match:\n                        op_name, between_parens = match.group(1), match.group(2)\n\n                        # We want to...\n                        #   Match: self_t.op1(other_p.op2(arg))\n                        #   Avoid: self_t.op1(args) + self_t.op2(args)\n                        #   Avoid: self_t.op1(other_p.op2(arg)) + self_t.op2(args)\n                        def check_parens_nest_level_gt_zero(s: str) -> bool:\n                            level = 1\n                            for ch in s:\n                                if ch == \")\":\n                                    level -= 1\n                                    if level == 0:\n                                        return False\n                                if ch == \"(\":\n                                    level += 1\n                            return True\n\n                        is_single_method_on_self_t = check_parens_nest_level_gt_zero(\n                            between_parens\n                        )\n                        directly_do_inplace = (\n                            is_single_method_on_self_t and op_name == info.name\n                        )\n\n                    if directly_do_inplace:\n                        assert op_name is not None\n                        assert between_parens is not None\n                        formula = f\"self_t_raw.defined() ? self_t_raw.{op_name}_({between_parens}) : {formula}\"\n                    else:\n                        # Make sure that the forward grad is modified inplace when the original formula\n                        # is out of place\n                        formula = f\"self_t_raw.defined() ? self_t_raw.copy_({formula}) : {formula}\"\n\n                required_original_self_value = bool(\n                    re.search(IDENT_REGEX.format(\"original_self_p\"), formula)\n                ) or bool(re.search(IDENT_REGEX.format(\"original_self_t\"), formula))\n\n                forward_derivatives = [\n                    ForwardDerivative(\n                        formula=formula,\n                        var_names=(\"self\",),\n                        var_types=fw_info.var_types,\n                        required_inputs_fw_grad=fw_info.required_inputs_fw_grad,\n                        required_inputs_primal=required_primals,\n                        required_original_self_value=required_original_self_value,\n                        is_reusing_outplace_formula=not is_exact_match,\n                    ),\n                ]\n\n            fw_derivative_dict[key] = forward_derivatives\n\n        result.append(\n            NativeFunctionWithDifferentiabilityInfo(\n                func=f, info=info_dict, fw_derivatives=fw_derivative_dict\n            )\n        )\nreturn result",
+            "length": 243,
+            "comment": {
+              "description": "Matches a Python function with a Differentiability Information file and generates a NativeFunctionWithDifferentiabilityInfo object that contains the differentiability information for the matched function.",
+              "params": [
+                {
+                  "name": "native_functions",
+                  "type": "List[NativeFunction]",
+                  "value": null,
+                  "description": "dictionary of functions that will be converted into native functions with differentiability information, and it is used to append the resulting native functions to a list called `result`."
+                },
+                {
+                  "name": "differentiability_infos",
+                  "type": "Dict[FunctionSchema, Dict[str, DifferentiabilityInfo]]",
+                  "value": null,
+                  "description": "3-tuples containing information about each derivative produced by the `forward_derivative` function, including the formula of the derivative, its variable names and types, and whether it is reusing an out-of-place formula or not."
+                }
+              ],
+              "returns": {
+                "type": "List[NativeFunctionWithDifferentiabilityInfo]",
+                "description": "a list of `NativeFunctionWithDifferentiabilityInfo` objects, each containing information about a differentiable function and its forward derivative."
+              }
+            }
+          },
+          {
+            "id": "1666e8b4-8b87-4cdd-8945-704ed79b4dce",
+            "ancestors": [
+              "0a3a8261-3414-4b67-aec7-41235dca49d4"
+            ],
+            "type": "function",
+            "name": "find_info",
+            "location": {
+              "offset": " ",
+              "indent": 8,
+              "start": 585,
+              "insert": 589
+            },
+            "params": [
+              {
+                "name": "f",
+                "value": null,
+                "type": "NativeFunction"
+              }
+            ],
+            "returns": "Tuple[Optional[Dict[str, DifferentiabilityInfo]], bool]",
+            "skip": false,
+            "docLength": null,
+            "stripped": "if \"generated\" in f.tags and f.func.kind() == SchemaKind.out:\n            return None, False\n\n        # (1) Check for an exact match\n        if f.func in differentiability_infos:\n            return differentiability_infos[f.func], True\n\n        # (2) If no exact match, check if the out-of-place variant\n        # of this operator has a match.\n        # i.e mul() for mul_() or mul_out()\n        # note(crcrpar): Check foreach or not because in-place foreach functions use backward defined for the existing\n        # native functions instead of the out-place counterparts.\n        f_sig = f.func.signature(strip_default=True)\n        if f_sig in functional_info_by_signature and not is_foreach_func(f):\n            return functional_info_by_signature[f_sig], False\n\n        # (3) Some operators have a derivative explicitly defined for the mutable\n        # variant, but get a code-generated out-of-place variant which does *not*\n        # come with a derivative formula.\n        # For the generated out-of-place variant, use the mutable variant's formula\n        # if it exists.\n        if \"generated\" in f.tags and f_sig in non_functional_info_by_signature:\n            info_dict = non_functional_info_by_signature[f_sig]\n            # See https://github.com/pytorch/pytorch/pull/76320/files#r874816389\n            assert not any(\n                any(\"self\" in str(inpt.nctype.name) for inpt in info.all_saved_inputs)\n                for info in info_dict.values()\n            ), f\"\"\"\\\nAttempted to convert a derivative formula for a mutable operator\n to be used by automatically by its functional variant (\"{str(f.func)}\").\n this is not currently supported (we'd need to fix up the formula in the codegen).\"\"\"\n            return info_dict, False\n\n        # (4) Generate derivative information of foreach functions if none is defined in `derivatives.yaml`\n        if is_foreach_func(f):\n            assert f.func not in differentiability_infos\n            diff_info, is_generated = gen_foreach_derivativeinfo(\n                f,\n                functional_info_by_signature,\n                non_functional_info_by_signature,\n            )\n            if diff_info is None:\n                return None, False\n            # TODO(crcrpar): Avoid hard coding \"Default\" ideally.\n            diff_info_dict = {\"Default\": diff_info}\n            if is_generated:\n                differentiability_infos[f.func] = diff_info_dict\n                functional_info_by_signature[f.func] = diff_info_dict\n            return diff_info_dict, is_generated\n\n        return None, False",
+            "length": 55,
+            "comment": {
+              "description": "Searches for derivative information for a given Python function. It checks if there is an exact match of the function signature, then looks for matches in generated out-of-place variants, and finally generates a derivative formula for mutable operators.",
+              "params": [
+                {
+                  "name": "f",
+                  "type": "NativeFunction",
+                  "value": null,
+                  "description": "nativeFunction object passed to the find_info() function."
+                }
+              ],
+              "returns": {
+                "type": "Tuple[Optional[Dict[str, DifferentiabilityInfo]], bool]",
+                "description": "a tuple containing an optional dictionary of derivative information and a boolean indicating whether the derivative was generated automatically or not."
+              }
+            }
+          },
+          {
+            "id": "2fffee7f-38fa-463f-a82f-3afc82c1f279",
+            "ancestors": [
+              "0a3a8261-3414-4b67-aec7-41235dca49d4"
+            ],
+            "type": "function",
+            "name": "replace_self_with_original_self",
+            "location": {
+              "offset": " ",
+              "indent": 20,
+              "start": 700,
+              "insert": 701
+            },
+            "params": [
+              {
+                "name": "formula",
+                "value": null,
+                "type": "str"
+              },
+              {
+                "name": "postfix",
+                "value": null,
+                "type": "str"
+              }
+            ],
+            "returns": "str",
+            "skip": false,
+            "docLength": null,
+            "stripped": "def repl(m: Match[str]) -> str:\n                        return f\"{m.group(1)}original_self{postfix}{m.group(2)}\"\n\n                    return re.sub(IDENT_REGEX.format(f\"self{postfix}\"), repl, formula)",
+            "length": 5,
+            "comment": {
+              "description": "Takes a formula and a postfix as input, replaces all instances of \"self\" with the original string followed by the given postfix, and returns the modified formula.",
+              "params": [
+                {
+                  "name": "formula",
+                  "type": "str",
+                  "value": null,
+                  "description": "string that needs to be modified by replacing all occurrences of \"self\" with their original value followed by the given postfix."
+                },
+                {
+                  "name": "postfix",
+                  "type": "str",
+                  "value": null,
+                  "description": "string to be appended to the result of replacing all occurrences of the word \"self\" with the original value of that word."
+                }
+              ],
+              "returns": {
+                "type": "str",
+                "description": "a modified string with the original self inserted after the postfix."
+              }
+            }
+          },
+          {
+            "id": "ba759d14-f5cd-4a79-a1c6-15009182ac49",
+            "ancestors": [
+              "0a3a8261-3414-4b67-aec7-41235dca49d4"
+            ],
+            "type": "function",
+            "name": "check_parens_nest_level_gt_zero",
+            "location": {
+              "offset": " ",
+              "indent": 28,
+              "start": 756,
+              "insert": 757
+            },
+            "params": [
+              {
+                "name": "s",
+                "value": null,
+                "type": "str"
+              }
+            ],
+            "returns": "bool",
+            "skip": false,
+            "docLength": null,
+            "stripped": "level = 1\n                            for ch in s:\n                                if ch == \")\":\n                                    level -= 1\n                                    if level == 0:\n                                        return False\n                                if ch == \"(\":\n                                    level += 1\n                            return True",
+            "length": 10,
+            "comment": {
+              "description": "Checks whether a string is a valid nested structure of balanced parentheses. It does so by iterating over the characters of the string and adjusting a level counter based on the encountered open and close parentheses. If the level counter reaches zero, the function returns `False`. Otherwise, it returns `True`.",
+              "params": [
+                {
+                  "name": "s",
+                  "type": "str",
+                  "value": null,
+                  "description": "string to be parsed for proper nesting level of parentheses, and the function checks the level of nesting by iterating through the characters of the string."
+                }
+              ],
+              "returns": {
+                "type": "bool",
+                "description": "`True` when the nesting level of parentheses in the given string is greater than zero, and `False` otherwise."
+              }
+            }
+          },
+          {
+            "id": "35ead10f-3e55-4b25-b7e8-da37ad2c8a7b",
+            "ancestors": [],
+            "type": "function",
+            "name": "is_differentiable",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 810,
+              "insert": 813
+            },
+            "params": [
+              {
+                "name": "name",
+                "value": null,
+                "type": "str"
+              },
+              {
+                "name": "type",
+                "value": null,
+                "type": "Type"
+              },
+              {
+                "name": "info",
+                "value": null,
+                "type": "Optional[DifferentiabilityInfo]"
+              }
+            ],
+            "returns": "bool",
+            "skip": false,
+            "docLength": null,
+            "stripped": "return type.is_tensor_like() and (\n        info is None or name not in info.non_differentiable_arg_names\n    )",
+            "length": 6,
+            "comment": {
+              "description": "Determines whether a given tensor-like object is differentiable based on its type and provided DifferentiabilityInfo object. If the object is a tensor, and either the object has no non-differentiable argument names or the name of the input object is not present in the list of non-differentiable argument names, then it is differentiable.",
+              "params": [
+                {
+                  "name": "name",
+                  "type": "str",
+                  "value": null,
+                  "description": "name of the variable for which differentiability is being checked."
+                },
+                {
+                  "name": "type",
+                  "type": "Type",
+                  "value": null,
+                  "description": "type of the object being passed to the `is_differentiable()` function, which is used to determine if it is differentiable or not based on whether it is a tensor-like object."
+                },
+                {
+                  "name": "info",
+                  "type": "Optional[DifferentiabilityInfo]",
+                  "value": null,
+                  "description": "DifferentiabilityInfo object, which provides information about non-differentiable arguments in the input tensor."
+                }
+              ],
+              "returns": {
+                "type": "bool",
+                "description": "a boolean value indicating whether the input `name` is differentiable or not, based on the type and provided differentiability information."
+              }
+            }
+          },
+          {
+            "id": "f5c6551b-b5a6-420e-821d-bea88c7e9bd5",
+            "ancestors": [],
+            "type": "function",
+            "name": "gen_differentiable_outputs",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 818,
+              "insert": 821
+            },
+            "params": [
+              {
+                "name": "fn",
+                "value": null,
+                "type": "NativeFunctionWithDifferentiabilityInfo"
+              },
+              {
+                "name": "key",
+                "value": "str",
+                "type": "\"Default\""
+              }
+            ],
+            "returns": "List[DifferentiableOutput]",
+            "skip": false,
+            "docLength": null,
+            "stripped": "f = fn.func\n    info = fn.info[key] if fn.info else None\n    outputs: List[DifferentiableOutput] = [\n        DifferentiableOutput(\n            name=name,\n            type=ret.type,\n            cpp_type=cpp.return_type(ret, symint=True).cpp_type(),\n        )\n        for name, ret in zip(cpp.return_names(f), f.func.returns)\n    ]\n    output_differentiability = info.output_differentiability if info else None\n    if output_differentiability is not None:\n        if len(output_differentiability) != len(outputs):\n            raise RuntimeError(\n                f\"The length of output_differentiability ({len(output_differentiability)}), \"\n                f\"does not match the number of outputs ({len(outputs)}).\"\n            )\n        differentiable_outputs: List[DifferentiableOutput] = []\n        if False in output_differentiability and f.func.kind() == SchemaKind.inplace:\n            raise RuntimeError(\n                \"output_differentiability=False for inplace operation (version_counter won't get updated)\"\n            )\n        for differentiable, output in zip(output_differentiability, outputs):\n            if differentiable:\n                differentiable_outputs.append(output)\n        return differentiable_outputs\n    candidate_differentiable_outputs = list(\n        filter(lambda r: is_differentiable(r.name, r.type, info), outputs)\n    )\n    if uses_single_grad(info):\n        return candidate_differentiable_outputs[:1]\n    else:\n        return candidate_differentiable_outputs",
+            "length": 36,
+            "comment": {
+              "description": "Generates a list of differentiable outputs for a given native function, based on its differentiability information. It takes the function and key as inputs, and returns a list of DifferentiableOutput objects corresponding to the output names and types found in the function's differentiability information.",
+              "params": [
+                {
+                  "name": "fn",
+                  "type": "NativeFunctionWithDifferentiabilityInfo",
+                  "value": null,
+                  "description": "native function object, which contains information about the function's differentiability."
+                },
+                {
+                  "name": "key",
+                  "type": "\"Default\"",
+                  "value": "str",
+                  "description": "name of an output that contains differentiability information, which is used to filter and return only those outputs with valid differentiation information."
+                }
+              ],
+              "returns": {
+                "type": "List[DifferentiableOutput]",
+                "description": "a list of DifferentiableOutput objects, where each object represents a potential differentiable output for a given function."
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "monitor.py",
+    "path": "tools/stats/monitor.py",
+    "content": {
+      "structured": {
+        "description": "",
+        "items": [
+          {
+            "id": "5750fcfd-bdc0-4bab-898b-778ec93159e1",
+            "ancestors": [],
+            "type": "function",
+            "name": "get_processes_running_python_tests",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 29,
+              "insert": 30
+            },
+            "code": "def get_processes_running_python_tests() -> List[Any]:\n    python_processes = []\n    for process in psutil.process_iter():\n        try:\n            if \"python\" in process.name() and process.cmdline():\n                python_processes.append(process)\n        except (psutil.NoSuchProcess, psutil.AccessDenied):\n            # access denied or the process died\n            pass\n    return python_processes",
+            "params": [],
+            "returns": "List[Any]",
+            "skip": false,
+            "length": 10,
+            "comment": {
+              "description": "iterates through running processes using `psutil` and adds to a list any processes that have \"python\" in their name and execute a command using `cmdline()`.",
+              "params": [],
+              "returns": {
+                "type": "List[Any]",
+                "description": "a list of Python processes running on the system."
+              }
+            }
+          },
+          {
+            "id": "74c57abe-3bb0-44fa-8db4-0871ef74774b",
+            "ancestors": [],
+            "type": "function",
+            "name": "get_per_process_cpu_info",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 41,
+              "insert": 42
+            },
+            "code": "def get_per_process_cpu_info() -> List[Dict[str, Any]]:\n    processes = get_processes_running_python_tests()\n    per_process_info = []\n    for p in processes:\n        info = {\n            \"pid\": p.pid,\n            \"cmd\": \" \".join(p.cmdline()),\n            \"cpu_percent\": p.cpu_percent(),\n            \"rss_memory\": p.memory_info().rss,\n        }\n\n        # https://psutil.readthedocs.io/en/latest/index.html?highlight=memory_full_info\n        # requires higher user privileges and could throw AccessDenied error, i.e. mac\n        try:\n            memory_full_info = p.memory_full_info()\n\n            info[\"uss_memory\"] = memory_full_info.uss\n            if \"pss\" in memory_full_info:\n                # only availiable in linux\n                info[\"pss_memory\"] = memory_full_info.pss\n\n        except psutil.AccessDenied as e:\n            # It's ok to skip this\n            pass\n\n        per_process_info.append(info)\n    return per_process_info",
+            "params": [],
+            "returns": "List[Dict[str, Any]]",
+            "skip": false,
+            "length": 27,
+            "comment": {
+              "description": "retrieves CPU information and memory usage for each running Python test process, and returns a list of dictionaries containing this information for each process.",
+              "params": [],
+              "returns": {
+                "type": "List[Dict[str, Any]]",
+                "description": "a list of dictionaries containing CPU information and memory usage for each running Python process."
+              }
+            }
+          },
+          {
+            "id": "6b3f6343-b89a-4635-a60d-994be54133de",
+            "ancestors": [],
+            "type": "function",
+            "name": "get_per_process_gpu_info",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 70,
+              "insert": 71
+            },
+            "code": "def get_per_process_gpu_info(handle: Any) -> List[Dict[str, Any]]:\n    processes = pynvml.nvmlDeviceGetComputeRunningProcesses(handle)\n    per_process_info = []\n    for p in processes:\n        info = {\"pid\": p.pid, \"gpu_memory\": p.usedGpuMemory}\n        per_process_info.append(info)\n    return per_process_info",
+            "params": [
+              {
+                "name": "handle",
+                "value": null,
+                "type": "Any"
+              }
+            ],
+            "returns": "List[Dict[str, Any]]",
+            "skip": false,
+            "length": 7,
+            "comment": {
+              "description": "retrieves GPU information for each running process on a host using the NVML library.",
+              "params": [
+                {
+                  "name": "handle",
+                  "type": "Any",
+                  "value": null,
+                  "description": "3D NVML handle that is used to retrieve GPU information for each process."
+                }
+              ],
+              "returns": {
+                "type": "List[Dict[str, Any]]",
+                "description": "a list of dictionaries containing information about each running process on the system, including its PID and GPU memory usage."
+              }
+            }
+          },
+          {
+            "id": "58bcba1f-5c5e-4b89-95ae-167cd4684ffe",
+            "ancestors": [],
+            "type": "function",
+            "name": "rocm_list_devices",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 83,
+              "insert": 84
+            },
+            "code": "def rocm_list_devices() -> List[int]:\n    num = c_uint32(0)\n    ret = rocmsmi.rsmi_num_monitor_devices(byref(num))\n    if rocm_ret_ok(ret):\n        return list(range(num.value))\n    return []",
+            "params": [],
+            "returns": "List[int]",
+            "skip": false,
+            "length": 6,
+            "comment": {
+              "description": "calls the `rocmsmi.rsmi_num_monitor_devices` function to retrieve a list of device IDs. It then returns the list of IDs as an integer list.",
+              "params": [],
+              "returns": {
+                "type": "List[int]",
+                "description": "a list of integer indices representing the available Rocket Morty devices."
+              }
+            }
+          },
+          {
+            "id": "663206fa-b1b8-4495-b808-563fbfd2ea2d",
+            "ancestors": [],
+            "type": "function",
+            "name": "rocm_get_mem_use",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 91,
+              "insert": 92
+            },
+            "code": "def rocm_get_mem_use(device: int) -> float:\n    memoryUse = c_uint64()\n    memoryTot = c_uint64()\n\n    ret = rocmsmi.rsmi_dev_memory_usage_get(device, 0, byref(memoryUse))\n    if rocm_ret_ok(ret):\n        ret = rocmsmi.rsmi_dev_memory_total_get(device, 0, byref(memoryTot))\n        if rocm_ret_ok(ret):\n            return float(memoryUse.value) / float(memoryTot.value)\n    return 0.0",
+            "params": [
+              {
+                "name": "device",
+                "value": null,
+                "type": "int"
+              }
+            ],
+            "returns": "float",
+            "skip": false,
+            "length": 10,
+            "comment": {
+              "description": "calculates the memory usage ratio for a given device, returning the result as a floating-point number.",
+              "params": [
+                {
+                  "name": "device",
+                  "type": "int",
+                  "value": null,
+                  "description": "64-bit integer value of the device for which memory usage is to be calculated."
+                }
+              ],
+              "returns": {
+                "type": "float",
+                "description": "a fraction representing the percentage of memory used by a RoCM device."
+              }
+            }
+          },
+          {
+            "id": "aa5dfc14-9137-4271-a284-5e8fe6b90050",
+            "ancestors": [],
+            "type": "function",
+            "name": "rocm_get_gpu_use",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 103,
+              "insert": 104
+            },
+            "code": "def rocm_get_gpu_use(device: int) -> float:\n    percent = c_uint32()\n    ret = rocmsmi.rsmi_dev_busy_percent_get(device, byref(percent))\n    if rocm_ret_ok(ret):\n        return float(percent.value)\n    return 0.0",
+            "params": [
+              {
+                "name": "device",
+                "value": null,
+                "type": "int"
+              }
+            ],
+            "returns": "float",
+            "skip": false,
+            "length": 6,
+            "comment": {
+              "description": "returns the current percentage of a Rocket Morty GPU's use based on an RMI call to `rocmsmi.rsmi_dev_busy_percent_get`.",
+              "params": [
+                {
+                  "name": "device",
+                  "type": "int",
+                  "value": null,
+                  "description": "3D accelerator card to be checked for busy percent, and it takes an integer value ranging from 0 to 255, inclusive of ROCMSMI device IDs."
+                }
+              ],
+              "returns": {
+                "type": "float",
+                "description": "a percentage value representing the current GPU utilization."
+              }
+            }
+          },
+          {
+            "id": "deda43e1-627a-4eb6-8dd6-a6dafda8a0cc",
+            "ancestors": [],
+            "type": "function",
+            "name": "rocm_get_pid_list",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 111,
+              "insert": 112
+            },
+            "code": "def rocm_get_pid_list() -> List[Any]:\n    num_items = c_uint32()\n    ret = rocmsmi.rsmi_compute_process_info_get(None, byref(num_items))\n    if rocm_ret_ok(ret):\n        buff_sz = num_items.value + 10\n        procs = (rsmi_process_info_t * buff_sz)()\n        procList = []\n        ret = rocmsmi.rsmi_compute_process_info_get(byref(procs), byref(num_items))\n        for i in range(num_items.value):\n            procList.append(procs[i].process_id)\n        return procList\n    return []",
+            "params": [],
+            "returns": "List[Any]",
+            "skip": false,
+            "length": 12,
+            "comment": {
+              "description": "computes and returns a list of process IDs using the Rocks Machine Interface (RMI). It takes no arguments and returns a list of process IDs on success, or an empty list on failure.",
+              "params": [],
+              "returns": {
+                "type": "List[Any]",
+                "description": "a list of process IDs."
+              }
+            }
+          },
+          {
+            "id": "a7560313-acf4-4008-bea9-4c956b4d91e9",
+            "ancestors": [],
+            "type": "function",
+            "name": "rocm_get_per_process_gpu_info",
+            "location": {
+              "offset": " ",
+              "indent": 4,
+              "start": 125,
+              "insert": 126
+            },
+            "code": "def rocm_get_per_process_gpu_info() -> List[Dict[str, Any]]:\n    per_process_info = []\n    for pid in rocm_get_pid_list():\n        proc = rsmi_process_info_t()\n        ret = rocmsmi.rsmi_compute_process_info_by_pid_get(int(pid), byref(proc))\n        if rocm_ret_ok(ret):\n            info = {\"pid\": pid, \"gpu_memory\": proc.vram_usage}\n            per_process_info.append(info)\n    return per_process_info",
+            "params": [],
+            "returns": "List[Dict[str, Any]]",
+            "skip": false,
+            "length": 9,
+            "comment": {
+              "description": "retrieves GPU information for each process in a list and returns a list of dictionaries containing \"pid\" and \"gpu_memory\" fields.",
+              "params": [],
+              "returns": {
+                "type": "List[Dict[str, Any]]",
+                "description": "a list of dictionaries containing GPU information for each process in a given list."
+              }
+            }
+          },
+          {
+            "id": "198ef92c-704b-4243-8d5b-c6ece6ef5d70",
+            "ancestors": [],
+            "type": "function",
+            "name": "exit_gracefully",
+            "location": {
+              "offset": " ",
+              "indent": 8,
+              "start": 155,
+              "insert": 156
+            },
+            "code": "def exit_gracefully(*args: Any) -> None:\n        global kill_now\n        kill_now = True",
+            "params": [
+              {
+                "name": "*args",
+                "value": null,
+                "type": "Any"
+              }
+            ],
+            "returns": false,
+            "skip": false,
+            "length": 3,
+            "comment": {
+              "description": "sets a global variable `kill_now` to `True`, indicating that the program should exit gracefully with the specified arguments.",
+              "params": [
+                {
+                  "name": "*args",
+                  "type": "Any",
+                  "value": null,
+                  "description": "0 or more arguments passed to the function, which are stored in a variable called `kill_now`."
+                }
+              ],
+              "returns": null
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "name": "_compile.py",
+    "path": "torch/_compile.py",
+    "content": {
+      "structured": {
+        "description": "",
+        "items": [
+          {
+            "id": "b34f36e0-2c01-42e4-b76d-ef4c2734d89a",
+            "ancestors": [
+              "af15bfb9-043f-4c6a-8659-e132a042f707"
+            ],
+            "type": "function",
+            "name": "inner",
+            "location": {
+              "offset": " ",
+              "indent": 12,
+              "start": 21,
+              "insert": 22
+            },
+            "code": "def inner(*args, **kwargs):\n            import torch._dynamo\n\n            return torch._dynamo.disable(fn, recursive)(*args, **kwargs)",
+            "params": [],
+            "returns": true,
+            "skip": false,
+            "stripped": "import torch._dynamo\n\n            return torch._dynamo.disable(fn, recursive)(*args, **kwargs)",
+            "length": 4,
+            "comment": {
+              "description": "disable the dynamic computation graph recording for a given function `fn` and its nested calls recursively by wrapping them with `torch._dynamo.disable(fn, recursive)`.",
+              "params": [],
+              "returns": {
+                "type": "`torch.Tensor`.",
+                "description": "the result of calling the provided function `fn` with the passed arguments and keyword arguments after disabling dynamic computation tracing using `torch._dynamo.disable(fn, recursive)`.\n\n\t* The function returns a tuple containing the result of calling the provided function `fn` with the passed arguments `*args` and keyword arguments `**kwargs`.\n\t* The returned value is a dynamo-enabled version of the original function call.\n\t* The `torch._dynamo` module is imported to enable dynamo-based tracing of the function.\n"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+]

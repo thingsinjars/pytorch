@@ -172,6 +172,22 @@ class DifferentiabilityInfo:
     def create_view_copy_from_view_derivative(
         self, g: NativeFunctionsViewGroup
     ) -> Optional["DifferentiabilityInfo"]:
+        """
+        Creates a new view derivative object based on an existing view derivative
+        object. It returns the created derivative object with the same name,
+        function, and op as the original, but with additional information such as
+        derivatives, forward derivatives, and conditions for output differentiability.
+
+        Args:
+            g (NativeFunctionsViewGroup): NativeFunctionsViewGroup object for which
+                the view copy is to be created.
+
+        Returns:
+            Optional["DifferentiabilityInfo"]: a `DifferentiabilityInfo` object
+            containing the same derivative information as the original function,
+            but with an added "_copy" prefix to the name, funcion, and op names.
+
+        """
         if g.view_copy is None:
             return None
         f = g.view_copy
@@ -203,6 +219,22 @@ class DifferentiabilityInfo:
 
 
 def uses_ident(info: Optional[DifferentiabilityInfo], ident: str) -> bool:
+    """
+    Checks whether a given string appears in a list of derivative formulas provided
+    as `info.derivatives`.
+
+    Args:
+        info (Optional[DifferentiabilityInfo]): DifferentiabilityInfo object which
+            provides information about the derivative of a given function.
+        ident (str): identifier of a symbol for which the function checks if it
+            appears in any of the derivatives provided in the `info.derivatives`
+            list.
+
+    Returns:
+        bool: a boolean value indicating whether an identifier is present in the
+        given derivative formula.
+
+    """
     if info is None:
         return False
     for derivative in info.derivatives:
@@ -260,22 +292,19 @@ class NativeFunctionWithDifferentiabilityInfo:
 
 # TODO: Update comment below since it is out of date.
 def dispatch_strategy(fn: NativeFunctionWithDifferentiabilityInfo) -> str:
-    """How are we going to call the underlying implementation of a
-    declaration?  There are two strategies:
-        - use_derived: we want to call the implementation on CPUDoubleType
-          (or a similar, derived Type instance).  Because these derived
-          instances deal in Tensors, not Variables (it's a completely different
-          object, so it doesn't dispatch back to VariableType), code on
-          this dispatch path needs to wrap/unwrap tensors.  If the
-          derived implementation takes and returns tensors, the
-          implementation is usually differentiable (although we also use
-          the derived dispatch path for non-differentiable functions
-          that we still want to dispatch on the derived Type instance;
-          e.g., size())
-        - use_type: we want to call the implementation on Type, because
-          it is implemented concretely, and the functions it invokes will
-          get dispatched back to VariableType (which will ensure that they
-          are differentiable.)
+    """
+    Determines the strategy for calling the underlying implementation of a function
+    based on whether it is abstract or has a derivative specified. It returns
+    either "use_derived" or "use_type" depending on the situation.
+
+    Args:
+        fn (NativeFunctionWithDifferentiabilityInfo): NativeFunctionWithDifferentiabilityInfo
+            object that is being processed by the function.
+
+    Returns:
+        str: a string indicating which strategy to use for calling the underlying
+        implementation of a declaration: "use_derived" or "use_type".
+
     """
     # fn is derived as long as any of its per-key differentiability infos
     # has_derivatives. dispatch_strategy() is used to guard generation of fns in VariableType
@@ -329,6 +358,22 @@ def is_reference_for_foreach(
     f: NativeFunction,
     function_schema: FunctionSchema,
 ) -> bool:
+    """
+    Checks if a given native function is a reference for a foreach loop by checking
+    the function name, its arguments, and whether it's an inplace operation or not.
+
+    Args:
+        f (NativeFunction): native function whose name and arguments are being
+            checked against the given `FunctionSchema`.
+        function_schema (FunctionSchema): schema of the function for which the
+            `is_reference_for_foreach` method is being called, providing information
+            about the name and type of the function's arguments and return value.
+
+    Returns:
+        bool: a boolean value indicating whether a given native function is a
+        reference for foreach.
+
+    """
     return (
         f.func.name.name.base.split("_foreach_")[-1] == function_schema.name.name.base
         and (
@@ -356,9 +401,40 @@ def gen_foreach_derivativeinfo(
     ],
     dispatch_key: str = "Default",
 ) -> Tuple[Optional[DifferentiabilityInfo], bool]:
-    """Generate DifferentiabilityInfo for out-place foreach function, return the existing one for in-place.
+    """
+    Performs forward difference calculations for a given `ForEach` function. It
+    modifies the formula of the `ForEach` function to reflect the changed arguments
+    and outputs, generates new saved inputs and outputs, and returns the updated
+    `DifferentiabilityInfo`.
 
-    The second return value indicates whether the info is generated in this function.
+    Args:
+        foreach_function (NativeFunction): "for loop" function being differentiated,
+            and it is used to modify the formula of the derivative by replacing
+            the loop variable with the output of the loop.
+        functional_info_by_signature (Dict[
+                    FunctionSchema, Dict[str, DifferentiabilityInfo]
+                ]): 3-tuples of (func, op, name) for each function in the graph,
+            which allows the function to differentiate its output based on the
+            signature of the function rather than its direct callers.
+        non_functional_info_by_signature (Dict[
+                    FunctionSchema, Dict[str, DifferentiabilityInfo]
+                ]): information about the functional form of each forward derivative
+            in the output differentiability information, including the signature
+            of the derivative and whether it is non-differentiable at certain inputs.
+        dispatch_key ("Default"): key of the corresponding `ForwardDerivative`
+            object in the derived `DifferentiabilityInfo` instance, which allows
+            efficient lookups and manipulation of the derivatives for the corresponding
+            `Foreach` operation within the function.
+
+    Returns:
+        Tuple[Optional[DifferentiabilityInfo], bool]: a tuple containing:
+        
+        	- Differentiability information for each variable in the Foreach loop.
+        	- A list of Forward Derivatives, representing the derivative of the Foreach
+        loop's formula.
+        	- Other relevant information (such as the name of the function, and whether
+        or not the output is non-differentiable).
+
     """
     ref_diff_info: Optional[DifferentiabilityInfo] = None
 
@@ -566,9 +642,27 @@ def match_differentiability_info(
     native_functions: List[NativeFunction],
     differentiability_infos: Dict[FunctionSchema, Dict[str, DifferentiabilityInfo]],
 ) -> List[NativeFunctionWithDifferentiabilityInfo]:
-    """Sets the "derivative" key on declarations to matching autograd function
-    In-place functions will use the out-of-place derivative definition if there
-    is no in-place specific derivative.
+    """
+    Matches a Python function with a Differentiability Information file and generates
+    a NativeFunctionWithDifferentiabilityInfo object that contains the differentiability
+    information for the matched function.
+
+    Args:
+        native_functions (List[NativeFunction]): dictionary of functions that will
+            be converted into native functions with differentiability information,
+            and it is used to append the resulting native functions to a list
+            called `result`.
+        differentiability_infos (Dict[FunctionSchema, Dict[str, DifferentiabilityInfo]]):
+            3-tuples containing information about each derivative produced by the
+            `forward_derivative` function, including the formula of the derivative,
+            its variable names and types, and whether it is reusing an out-of-place
+            formula or not.
+
+    Returns:
+        List[NativeFunctionWithDifferentiabilityInfo]: a list of
+        `NativeFunctionWithDifferentiabilityInfo` objects, each containing information
+        about a differentiable function and its forward derivative.
+
     """
 
     functional_info_by_signature = {
@@ -586,6 +680,22 @@ def match_differentiability_info(
         f: NativeFunction,
     ) -> Tuple[Optional[Dict[str, DifferentiabilityInfo]], bool]:
         # Don't bother matching info to generated out= variants
+        """
+        Searches for derivative information for a given Python function. It checks
+        if there is an exact match of the function signature, then looks for matches
+        in generated out-of-place variants, and finally generates a derivative
+        formula for mutable operators.
+
+        Args:
+            f (NativeFunction): nativeFunction object passed to the find_info() function.
+
+        Returns:
+            Tuple[Optional[Dict[str, DifferentiabilityInfo]], bool]: a tuple
+            containing an optional dictionary of derivative information and a
+            boolean indicating whether the derivative was generated automatically
+            or not.
+
+        """
         if "generated" in f.tags and f.func.kind() == SchemaKind.out:
             return None, False
 
@@ -698,6 +808,24 @@ Attempted to convert a derivative formula for a mutable operator
                 formula = fw_info.formula
 
                 def replace_self_with_original_self(formula: str, postfix: str) -> str:
+                    """
+                    Takes a formula and a postfix as input, replaces all instances
+                    of "self" with the original string followed by the given
+                    postfix, and returns the modified formula.
+
+                    Args:
+                        formula (str): string that needs to be modified by replacing
+                            all occurrences of "self" with their original value
+                            followed by the given postfix.
+                        postfix (str): string to be appended to the result of
+                            replacing all occurrences of the word "self" with the
+                            original value of that word.
+
+                    Returns:
+                        str: a modified string with the original self inserted
+                        after the postfix.
+
+                    """
                     def repl(m: Match[str]) -> str:
                         return f"{m.group(1)}original_self{postfix}{m.group(2)}"
 
@@ -754,6 +882,26 @@ Attempted to convert a derivative formula for a mutable operator
                         #   Avoid: self_t.op1(args) + self_t.op2(args)
                         #   Avoid: self_t.op1(other_p.op2(arg)) + self_t.op2(args)
                         def check_parens_nest_level_gt_zero(s: str) -> bool:
+                            """
+                            Checks whether a string is a valid nested structure
+                            of balanced parentheses. It does so by iterating over
+                            the characters of the string and adjusting a level
+                            counter based on the encountered open and close
+                            parentheses. If the level counter reaches zero, the
+                            function returns `False`. Otherwise, it returns `True`.
+
+                            Args:
+                                s (str): string to be parsed for proper nesting
+                                    level of parentheses, and the function checks
+                                    the level of nesting by iterating through the
+                                    characters of the string.
+
+                            Returns:
+                                bool: `True` when the nesting level of parentheses
+                                in the given string is greater than zero, and
+                                `False` otherwise.
+
+                            """
                             level = 1
                             for ch in s:
                                 if ch == ")":
@@ -810,6 +958,27 @@ Attempted to convert a derivative formula for a mutable operator
 def is_differentiable(
     name: str, type: Type, info: Optional[DifferentiabilityInfo]
 ) -> bool:
+    """
+    Determines whether a given tensor-like object is differentiable based on its
+    type and provided DifferentiabilityInfo object. If the object is a tensor, and
+    either the object has no non-differentiable argument names or the name of the
+    input object is not present in the list of non-differentiable argument names,
+    then it is differentiable.
+
+    Args:
+        name (str): name of the variable for which differentiability is being checked.
+        type (Type): type of the object being passed to the `is_differentiable()`
+            function, which is used to determine if it is differentiable or not
+            based on whether it is a tensor-like object.
+        info (Optional[DifferentiabilityInfo]): DifferentiabilityInfo object, which
+            provides information about non-differentiable arguments in the input
+            tensor.
+
+    Returns:
+        bool: a boolean value indicating whether the input `name` is differentiable
+        or not, based on the type and provided differentiability information.
+
+    """
     return type.is_tensor_like() and (
         info is None or name not in info.non_differentiable_arg_names
     )
@@ -818,6 +987,24 @@ def is_differentiable(
 def gen_differentiable_outputs(
     fn: NativeFunctionWithDifferentiabilityInfo, key: str = "Default"
 ) -> List[DifferentiableOutput]:
+    """
+    Generates a list of differentiable outputs for a given native function, based
+    on its differentiability information. It takes the function and key as inputs,
+    and returns a list of DifferentiableOutput objects corresponding to the output
+    names and types found in the function's differentiability information.
+
+    Args:
+        fn (NativeFunctionWithDifferentiabilityInfo): native function object, which
+            contains information about the function's differentiability.
+        key ("Default"): name of an output that contains differentiability
+            information, which is used to filter and return only those outputs
+            with valid differentiation information.
+
+    Returns:
+        List[DifferentiableOutput]: a list of DifferentiableOutput objects, where
+        each object represents a potential differentiable output for a given function.
+
+    """
     f = fn.func
     info = fn.info[key] if fn.info else None
     outputs: List[DifferentiableOutput] = [
